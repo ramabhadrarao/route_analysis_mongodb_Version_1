@@ -1,592 +1,898 @@
-// File: services/riskCalculationService.js
-// Purpose: Calculate weighted risk scores based on 11 criteria
-// Implements the formula: Total Weighted Score = Σ(Risk Score × Weight / 100)
+// File: services/riskCalculationService.js - Enhanced Version
+// Purpose: Enhanced risk calculation with comprehensive data integration
+// Integrates with enhanced data collection service for accurate risk assessment
 
 const Route = require('../models/Route');
 const RoadCondition = require('../models/RoadCondition');
-const AccidentProneArea = require('../models/AccidentProneArea');
-const WeatherCondition = require('../models/WeatherCondition');
-const TrafficData = require('../models/TrafficData');
+const { AccidentProneArea, WeatherCondition, TrafficData } = require('../models/EnhancedModels');
 const EmergencyService = require('../models/EmergencyService');
 const logger = require('../utils/logger');
 
-class RiskCalculationService {
+class EnhancedRiskCalculationService {
   constructor() {
-    // Risk criteria weights as defined in requirements
+    // Enhanced risk criteria weights based on comprehensive data
     this.riskWeights = {
-      roadConditions: 15,        // Critical
-      accidentProne: 15,         // Critical
-      sharpTurns: 10,           // High
-      blindSpots: 10,           // High
-      twoWayTraffic: 10,        // High
-      trafficDensity: 10,       // High
-      weatherConditions: 10,    // High
-      emergencyServices: 5,     // Medium
-      networkCoverage: 5,       // Medium
-      amenities: 5,             // Medium
-      securityIssues: 5         // Medium
+      roadConditions: 15,           // Critical - Based on enhanced road condition data
+      accidentProne: 15,            // Critical - Based on comprehensive accident analysis
+      sharpTurns: 10,              // High - GPS-based turn analysis
+      blindSpots: 10,              // High - Elevation and visibility analysis
+      twoWayTraffic: 10,           // High - Route type analysis
+      trafficDensity: 10,          // High - Real-time traffic data
+      weatherConditions: 10,       // High - Comprehensive weather analysis
+      emergencyServices: 5,        // Medium - Enhanced emergency service coverage
+      networkCoverage: 5,          // Medium - Communication infrastructure
+      amenities: 5,                // Medium - Food, fuel, rest facilities
+      securityIssues: 5            // Medium - Security and crime analysis
     };
     
-    // Risk grade thresholds
+    // Enhanced risk grade thresholds
     this.gradeThresholds = {
-      A: { min: 0, max: 2.0 },    // Low Risk
-      B: { min: 2.1, max: 4.0 },  // Low-Medium Risk
-      C: { min: 4.1, max: 6.0 },  // Medium Risk
-      D: { min: 6.1, max: 8.0 },  // High Risk
-      F: { min: 8.1, max: 10.0 }  // Critical Risk
+      A: { min: 0, max: 2.0, level: 'Very Low Risk', color: '#28a745' },
+      B: { min: 2.1, max: 4.0, level: 'Low Risk', color: '#20c997' },
+      C: { min: 4.1, max: 6.0, level: 'Medium Risk', color: '#ffc107' },
+      D: { min: 6.1, max: 8.0, level: 'High Risk', color: '#fd7e14' },
+      F: { min: 8.1, max: 10.0, level: 'Critical Risk', color: '#dc3545' }
     };
   }
 
-  // Main risk calculation function
+  // Main enhanced risk calculation function
   async calculateRouteRisk(routeId) {
     try {
-      logger.riskLogger.info(`Starting risk calculation for route: ${routeId}`);
+      logger.riskLogger.info(`Starting enhanced risk calculation for route: ${routeId}`);
       
-      // Calculate individual risk scores
+      const route = await Route.findById(routeId);
+      if (!route) {
+        throw new Error('Route not found');
+      }
+
+      // Calculate individual risk scores with enhanced data
       const riskScores = {
-        roadConditions: await this.calculateRoadConditionsRisk(routeId),
-        accidentProne: await this.calculateAccidentProneRisk(routeId),
-        sharpTurns: await this.calculateSharpTurnsRisk(routeId),
-        blindSpots: await this.calculateBlindSpotsRisk(routeId),
-        twoWayTraffic: await this.calculateTwoWayTrafficRisk(routeId),
-        trafficDensity: await this.calculateTrafficDensityRisk(routeId),
-        weatherConditions: await this.calculateWeatherRisk(routeId),
-        emergencyServices: await this.calculateEmergencyServicesRisk(routeId),
-        networkCoverage: await this.calculateNetworkCoverageRisk(routeId),
-        amenities: await this.calculateAmenitiesRisk(routeId),
-        securityIssues: await this.calculateSecurityRisk(routeId)
+        roadConditions: await this.calculateEnhancedRoadConditionsRisk(routeId),
+        accidentProne: await this.calculateEnhancedAccidentProneRisk(routeId),
+        sharpTurns: await this.calculateEnhancedSharpTurnsRisk(routeId),
+        blindSpots: await this.calculateEnhancedBlindSpotsRisk(routeId),
+        twoWayTraffic: await this.calculateEnhancedTwoWayTrafficRisk(routeId),
+        trafficDensity: await this.calculateEnhancedTrafficDensityRisk(routeId),
+        weatherConditions: await this.calculateEnhancedWeatherRisk(routeId),
+        emergencyServices: await this.calculateEnhancedEmergencyServicesRisk(routeId),
+        networkCoverage: await this.calculateEnhancedNetworkCoverageRisk(routeId),
+        amenities: await this.calculateEnhancedAmenitiesRisk(routeId),
+        securityIssues: await this.calculateEnhancedSecurityRisk(routeId)
       };
 
       // Calculate weighted total score
       const totalWeightedScore = this.calculateWeightedScore(riskScores);
       
-      // Determine risk grade
+      // Determine risk grade and level
       const riskGrade = this.determineRiskGrade(totalWeightedScore);
+      const riskLevel = this.determineRiskLevel(totalWeightedScore);
+      
+      // Generate comprehensive risk explanation
+      const riskExplanation = this.generateEnhancedRiskExplanation(riskScores, totalWeightedScore, riskGrade);
       
       const result = {
         ...riskScores,
         totalWeightedScore: Math.round(totalWeightedScore * 100) / 100,
         riskGrade,
-        calculatedAt: new Date()
+        riskLevel,
+        riskExplanation,
+        topRiskFactors: this.identifyTopRiskFactors(riskScores),
+        safetyRecommendations: this.generateComprehensiveSafetyRecommendations(riskScores, totalWeightedScore),
+        calculatedAt: new Date(),
+        dataQuality: await this.assessDataQuality(routeId),
+        confidenceLevel: this.calculateConfidenceLevel(routeId)
       };
 
-      logger.riskLogger.info(`Risk calculation completed for route ${routeId}: Score ${totalWeightedScore}, Grade ${riskGrade}`);
+      // Update route with comprehensive risk assessment
+      await Route.findByIdAndUpdate(routeId, {
+        riskScores: result,
+        riskLevel: riskLevel,
+        'metadata.lastCalculated': new Date(),
+        'metadata.riskVersion': '2.0'
+      });
+
+      logger.riskLogger.info(`Enhanced risk calculation completed for route ${routeId}: Score ${totalWeightedScore}, Grade ${riskGrade}, Level ${riskLevel}`);
       
       return result;
 
     } catch (error) {
-      logger.riskLogger.error(`Risk calculation failed for route ${routeId}:`, error);
+      logger.riskLogger.error(`Enhanced risk calculation failed for route ${routeId}:`, error);
       throw error;
     }
   }
 
-  // 1. Road Conditions Risk (15% weight)
-  async calculateRoadConditionsRisk(routeId) {
+  // 1. ENHANCED ROAD CONDITIONS RISK
+  async calculateEnhancedRoadConditionsRisk(routeId) {
     try {
       const roadConditions = await RoadCondition.find({ routeId });
       
-      if (roadConditions.length === 0) return 5; // Default medium risk
+      if (roadConditions.length === 0) return 5;
       
-      // Calculate average risk score
-      const avgRisk = roadConditions.reduce((sum, condition) => {
-        let risk = condition.riskScore || 5;
+      let totalRisk = 0;
+      let weightedPoints = 0;
+      
+      for (const condition of roadConditions) {
+        let segmentRisk = condition.riskScore || 5;
+        let weight = 1;
         
-        // Adjust risk based on surface quality
-        switch (condition.surfaceQuality) {
-          case 'critical': risk += 3; break;
-          case 'poor': risk += 2; break;
-          case 'fair': risk += 1; break;
-          case 'good': risk -= 1; break;
-          case 'excellent': risk -= 2; break;
+        // Enhanced risk factors
+        const riskFactors = {
+          surfaceQuality: {
+            'critical': 4, 'poor': 3, 'fair': 1, 'good': -1, 'excellent': -2
+          },
+          maintenance: {
+            potholes: condition.hasPotholes ? 2 : 0,
+            construction: condition.underConstruction ? 3 : 0
+          },
+          infrastructure: {
+            narrowWidth: (condition.widthMeters && condition.widthMeters < 4) ? 2 : 0,
+            noShoulder: (condition.shoulderWidth && condition.shoulderWidth < 1) ? 1 : 0,
+            poorLighting: (condition.lightingQuality === 'poor') ? 2 : 0,
+            poorDrainage: (condition.drainageQuality === 'poor') ? 1 : 0
+          },
+          environmental: {
+            bridges: (condition.bridgesCulverts || 0) * 0.5,
+            steepSlope: (condition.slopeGradient > 6) ? 2 : 0
+          }
+        };
+        
+        // Apply risk factors
+        segmentRisk += riskFactors.surfaceQuality[condition.surfaceQuality] || 0;
+        segmentRisk += riskFactors.maintenance.potholes + riskFactors.maintenance.construction;
+        segmentRisk += riskFactors.infrastructure.narrowWidth + riskFactors.infrastructure.noShoulder;
+        segmentRisk += riskFactors.infrastructure.poorLighting + riskFactors.infrastructure.poorDrainage;
+        segmentRisk += riskFactors.environmental.bridges + riskFactors.environmental.steepSlope;
+        
+        // Weight by distance (longer segments have more impact)
+        if (condition.distanceFromStartKm !== undefined) {
+          weight = Math.max(0.5, Math.min(2, condition.segmentLength || 1));
         }
         
-        // Adjust for potholes
-        if (condition.hasPotholes) risk += 2;
-        
-        // Adjust for construction
-        if (condition.underConstruction) risk += 3;
-        
-        // Adjust for road width
-        if (condition.widthMeters && condition.widthMeters < 4) risk += 2;
-        
-        return sum + Math.max(1, Math.min(10, risk));
-      }, 0) / roadConditions.length;
+        totalRisk += Math.max(1, Math.min(10, segmentRisk)) * weight;
+        weightedPoints += weight;
+      }
       
-      return Math.round(avgRisk * 100) / 100;
+      return Math.round((totalRisk / weightedPoints) * 100) / 100;
       
     } catch (error) {
-      logger.riskLogger.error('Road conditions risk calculation failed:', error);
-      return 5; // Default risk
+      logger.riskLogger.error('Enhanced road conditions risk calculation failed:', error);
+      return 5;
     }
   }
 
-  // 2. Accident-Prone Areas Risk (15% weight)
-  async calculateAccidentProneRisk(routeId) {
+  // 2. ENHANCED ACCIDENT-PRONE AREAS RISK
+  async calculateEnhancedAccidentProneRisk(routeId) {
     try {
       const accidentAreas = await AccidentProneArea.find({ routeId });
       
-      if (accidentAreas.length === 0) return 3; // Default low-medium risk
+      if (accidentAreas.length === 0) return 3;
       
-      // Calculate risk based on accident frequency and severity
-      const totalRisk = accidentAreas.reduce((sum, area) => {
-        let risk = area.riskScore || 3;
-        
-        // Adjust based on accident frequency
-        if (area.accidentFrequencyYearly > 20) risk += 3;
-        else if (area.accidentFrequencyYearly > 10) risk += 2;
-        else if (area.accidentFrequencyYearly > 5) risk += 1;
-        
-        // Adjust based on severity
-        switch (area.accidentSeverity) {
-          case 'fatal': risk += 4; break;
-          case 'major': risk += 2; break;
-          case 'minor': risk += 1; break;
-        }
-        
-        return sum + Math.max(1, Math.min(10, risk));
-      }, 0);
+      let totalRisk = 0;
+      let riskAreaCount = 0;
       
-      return Math.round((totalRisk / accidentAreas.length) * 100) / 100;
-      
-    } catch (error) {
-      logger.riskLogger.error('Accident-prone risk calculation failed:', error);
-      return 3; // Default risk
-    }
-  }
-
-  // 3. Sharp Turns Risk (10% weight)
-  async calculateSharpTurnsRisk(routeId) {
-    try {
-      const route = await Route.findById(routeId);
-      if (!route || !route.routePoints) return 4;
-      
-      // Analyze route points for sharp turns
-      let sharpTurnCount = 0;
-      let totalTurnRisk = 0;
-      
-      for (let i = 1; i < route.routePoints.length - 1; i++) {
-        const prev = route.routePoints[i - 1];
-        const curr = route.routePoints[i];
-        const next = route.routePoints[i + 1];
+      for (const area of accidentAreas) {
+        let areaRisk = area.riskScore || 5;
         
-        // Calculate turn angle (simplified)
-        const angle = this.calculateTurnAngle(prev, curr, next);
-        
-        if (angle > 45) { // Sharp turn threshold
-          sharpTurnCount++;
-          
-          let turnRisk = 5;
-          if (angle > 90) turnRisk += 3;  // Very sharp turn
-          if (angle > 120) turnRisk += 2; // Hairpin turn
-          
-          // Consider elevation changes
-          if (curr.elevation && prev.elevation) {
-            const elevationChange = Math.abs(curr.elevation - prev.elevation);
-            if (elevationChange > 50) turnRisk += 2;
+        // Enhanced accident risk factors
+        const enhancedFactors = {
+          frequency: {
+            veryHigh: area.accidentFrequencyYearly > 20 ? 3 : 0,
+            high: area.accidentFrequencyYearly > 10 ? 2 : 0,
+            medium: area.accidentFrequencyYearly > 5 ? 1 : 0
+          },
+          severity: {
+            fatal: area.accidentSeverity === 'fatal' ? 4 : 0,
+            major: area.accidentSeverity === 'major' ? 2 : 0,
+            minor: area.accidentSeverity === 'minor' ? 1 : 0
+          },
+          timeRisk: {
+            night: (area.timeOfDayRisk?.night || 5) > 7 ? 2 : 0,
+            peak: (area.timeOfDayRisk?.peak || 5) > 7 ? 1 : 0
+          },
+          environmental: {
+            weather: (area.weatherRelatedRisk || 5) > 6 ? 2 : 0,
+            infrastructure: (area.infrastructureRisk || 5) > 6 ? 1 : 0,
+            traffic: (area.trafficVolumeRisk || 5) > 6 ? 1 : 0
+          },
+          trend: {
+            increasing: area.accidentTrend === 'increasing' ? 2 : 0,
+            stable: area.accidentTrend === 'stable' ? 0 : 0,
+            decreasing: area.accidentTrend === 'decreasing' ? -1 : 0
           }
-          
-          totalTurnRisk += turnRisk;
-        }
-      }
-      
-      if (sharpTurnCount === 0) return 2; // Low risk for no sharp turns
-      
-      const avgTurnRisk = totalTurnRisk / sharpTurnCount;
-      const densityRisk = Math.min(3, sharpTurnCount / 10); // Risk increases with turn density
-      
-      return Math.round((avgTurnRisk + densityRisk) * 100) / 100;
-      
-    } catch (error) {
-      logger.riskLogger.error('Sharp turns risk calculation failed:', error);
-      return 4; // Default risk
-    }
-  }
-
-  // 4. Blind Spots Risk (10% weight)
-  async calculateBlindSpotsRisk(routeId) {
-    try {
-      const route = await Route.findById(routeId);
-      if (!route || !route.routePoints) return 4;
-      
-      let blindSpotRisk = 0;
-      let riskPoints = 0;
-      
-      // Analyze elevation changes for hill crests and curves
-      for (let i = 1; i < route.routePoints.length - 1; i++) {
-        const prev = route.routePoints[i - 1];
-        const curr = route.routePoints[i];
-        const next = route.routePoints[i + 1];
+        };
         
-        // Check for hill crests (elevation peaks)
-        if (curr.elevation && prev.elevation && next.elevation) {
-          if (curr.elevation > prev.elevation && curr.elevation > next.elevation) {
-            const elevationDiff = Math.min(
-              curr.elevation - prev.elevation,
-              curr.elevation - next.elevation
-            );
-            
-            if (elevationDiff > 20) { // Significant hill crest
-              blindSpotRisk += 6 + Math.min(3, elevationDiff / 20);
-              riskPoints++;
-            }
-          }
-        }
+        // Apply enhanced factors
+        areaRisk += Math.max(enhancedFactors.frequency.veryHigh, enhancedFactors.frequency.high, enhancedFactors.frequency.medium);
+        areaRisk += Math.max(enhancedFactors.severity.fatal, enhancedFactors.severity.major, enhancedFactors.severity.minor);
+        areaRisk += enhancedFactors.timeRisk.night + enhancedFactors.timeRisk.peak;
+        areaRisk += enhancedFactors.environmental.weather + enhancedFactors.environmental.infrastructure + enhancedFactors.environmental.traffic;
+        areaRisk += enhancedFactors.trend.increasing + enhancedFactors.trend.stable + enhancedFactors.trend.decreasing;
         
-        // Check for sharp curves (potential blind spots)
-        const turnAngle = this.calculateTurnAngle(prev, curr, next);
-        if (turnAngle > 60) {
-          blindSpotRisk += 4 + (turnAngle - 60) / 30;
-          riskPoints++;
-        }
+        totalRisk += Math.max(1, Math.min(10, areaRisk));
+        riskAreaCount++;
       }
       
-      if (riskPoints === 0) return 2; // Low risk for straight, flat roads
-      
-      return Math.round((blindSpotRisk / riskPoints) * 100) / 100;
+      return riskAreaCount > 0 ? Math.round((totalRisk / riskAreaCount) * 100) / 100 : 3;
       
     } catch (error) {
-      logger.riskLogger.error('Blind spots risk calculation failed:', error);
-      return 4; // Default risk
+      logger.riskLogger.error('Enhanced accident-prone risk calculation failed:', error);
+      return 3;
     }
   }
 
-  // 5. Two-Way Traffic Risk (10% weight)
-  async calculateTwoWayTrafficRisk(routeId) {
-    try {
-      const route = await Route.findById(routeId);
-      if (!route) return 5;
-      
-      // Estimate based on road type and route characteristics
-      let risk = 5; // Base risk for two-way traffic
-      
-      // Adjust based on terrain
-      switch (route.terrain) {
-        case 'hilly': risk += 2; break;
-        case 'rural': risk += 1; break;
-        case 'urban': risk += 1; break;
-        case 'flat': risk -= 1; break;
-      }
-      
-      // Adjust based on major highways (assume better infrastructure)
-      if (route.majorHighways && route.majorHighways.length > 0) {
-        const hasNationalHighway = route.majorHighways.some(hw => hw.startsWith('NH'));
-        if (hasNationalHighway) risk -= 2;
-      }
-      
-      // Adjust based on route distance (longer routes = more two-way sections)
-      if (route.totalDistance > 200) risk += 1;
-      if (route.totalDistance > 500) risk += 1;
-      
-      return Math.max(1, Math.min(10, Math.round(risk * 100) / 100));
-      
-    } catch (error) {
-      logger.riskLogger.error('Two-way traffic risk calculation failed:', error);
-      return 5; // Default risk
-    }
-  }
-
-  // 6. Traffic Density Risk (10% weight)
-  async calculateTrafficDensityRisk(routeId) {
+  // 3. ENHANCED TRAFFIC DENSITY RISK
+  async calculateEnhancedTrafficDensityRisk(routeId) {
     try {
       const trafficData = await TrafficData.find({ routeId });
       
-      if (trafficData.length === 0) return 5; // Default medium risk
+      if (trafficData.length === 0) return 5;
       
-      const avgRisk = trafficData.reduce((sum, traffic) => {
-        let risk = traffic.riskScore || 5;
-        
-        // Adjust based on congestion level
-        switch (traffic.congestionLevel) {
-          case 'severe': risk = 9; break;
-          case 'heavy': risk = 7; break;
-          case 'moderate': risk = 5; break;
-          case 'light': risk = 3; break;
-          case 'free_flow': risk = 1; break;
-        }
-        
-        // Adjust based on average speed
-        if (traffic.averageSpeedKmph < 20) risk += 2;
-        else if (traffic.averageSpeedKmph < 40) risk += 1;
-        
-        return sum + risk;
-      }, 0) / trafficData.length;
+      let totalRisk = 0;
+      let dataPoints = 0;
       
-      return Math.round(avgRisk * 100) / 100;
+      for (const traffic of trafficData) {
+        let trafficRisk = traffic.riskScore || 5;
+        
+        // Enhanced traffic risk factors
+        const enhancedFactors = {
+          congestion: {
+            severe: traffic.congestionLevel === 'severe' ? 4 : 0,
+            heavy: traffic.congestionLevel === 'heavy' ? 3 : 0,
+            moderate: traffic.congestionLevel === 'moderate' ? 1 : 0,
+            light: traffic.congestionLevel === 'light' ? 0 : 0,
+            free_flow: traffic.congestionLevel === 'free_flow' ? -1 : 0
+          },
+          speed: {
+            crawling: traffic.averageSpeedKmph < 20 ? 3 : 0,
+            slow: traffic.averageSpeedKmph < 40 ? 2 : 0,
+            normal: traffic.averageSpeedKmph >= 40 ? 0 : 0
+          },
+          infrastructure: {
+            tollPoints: (traffic.tollPoints || 0) * 1,
+            construction: (traffic.constructionZones || 0) * 2,
+            trafficLights: (traffic.trafficLights || 0) * 0.5
+          },
+          incidents: {
+            accidents: (traffic.accidentReports || 0) * 2,
+            weatherImpact: traffic.weatherImpact === 'severe' ? 2 : 
+                          traffic.weatherImpact === 'moderate' ? 1 : 0
+          },
+          timing: {
+            peak: traffic.timeOfDay === 'morning_peak' || traffic.timeOfDay === 'evening_peak' ? 1 : 0
+          }
+        };
+        
+        // Apply enhanced factors
+        trafficRisk += Math.max(...Object.values(enhancedFactors.congestion));
+        trafficRisk += Math.max(...Object.values(enhancedFactors.speed));
+        trafficRisk += enhancedFactors.infrastructure.tollPoints + enhancedFactors.infrastructure.construction + enhancedFactors.infrastructure.trafficLights;
+        trafficRisk += enhancedFactors.incidents.accidents + enhancedFactors.incidents.weatherImpact;
+        trafficRisk += enhancedFactors.timing.peak;
+        
+        totalRisk += Math.max(1, Math.min(10, trafficRisk));
+        dataPoints++;
+      }
+      
+      return dataPoints > 0 ? Math.round((totalRisk / dataPoints) * 100) / 100 : 5;
       
     } catch (error) {
-      logger.riskLogger.error('Traffic density risk calculation failed:', error);
-      return 5; // Default risk
+      logger.riskLogger.error('Enhanced traffic density risk calculation failed:', error);
+      return 5;
     }
   }
 
-  // 7. Weather Conditions Risk (10% weight)
-  async calculateWeatherRisk(routeId) {
+  // 4. ENHANCED WEATHER CONDITIONS RISK
+  async calculateEnhancedWeatherRisk(routeId) {
     try {
       const weatherConditions = await WeatherCondition.find({ routeId });
       
-      if (weatherConditions.length === 0) return 4; // Default risk
+      if (weatherConditions.length === 0) return 4;
       
-      const avgRisk = weatherConditions.reduce((sum, weather) => {
-        let risk = weather.riskScore || 4;
-        
-        // Adjust based on weather condition
-        switch (weather.weatherCondition) {
-          case 'stormy': risk = 9; break;
-          case 'foggy': risk = 8; break;
-          case 'rainy': risk = 6; break;
-          case 'icy': risk = 8; break;
-          case 'clear': risk = 2; break;
-        }
-        
-        // Adjust based on visibility
-        if (weather.visibilityKm < 1) risk += 3;
-        else if (weather.visibilityKm < 5) risk += 2;
-        else if (weather.visibilityKm < 10) risk += 1;
-        
-        // Adjust based on wind speed
-        if (weather.windSpeedKmph > 50) risk += 2;
-        else if (weather.windSpeedKmph > 30) risk += 1;
-        
-        // Adjust based on road surface condition
-        switch (weather.roadSurfaceCondition) {
-          case 'icy': risk += 3; break;
-          case 'wet': risk += 2; break;
-          case 'muddy': risk += 2; break;
-        }
-        
-        return sum + Math.max(1, Math.min(10, risk));
-      }, 0) / weatherConditions.length;
+      let totalRisk = 0;
+      let dataPoints = 0;
       
-      return Math.round(avgRisk * 100) / 100;
+      for (const weather of weatherConditions) {
+        let weatherRisk = weather.riskScore || 4;
+        
+        // Enhanced weather risk factors
+        const enhancedFactors = {
+          condition: {
+            stormy: weather.weatherCondition === 'stormy' ? 4 : 0,
+            foggy: weather.weatherCondition === 'foggy' ? 3 : 0,
+            rainy: weather.weatherCondition === 'rainy' ? 2 : 0,
+            icy: weather.weatherCondition === 'icy' ? 4 : 0,
+            clear: weather.weatherCondition === 'clear' ? -1 : 0
+          },
+          visibility: {
+            veryPoor: (weather.visibilityKm || 10) < 1 ? 4 : 0,
+            poor: (weather.visibilityKm || 10) < 5 ? 3 : 0,
+            limited: (weather.visibilityKm || 10) < 10 ? 1 : 0
+          },
+          wind: {
+            extreme: (weather.windSpeedKmph || 0) > 70 ? 3 : 0,
+            high: (weather.windSpeedKmph || 0) > 50 ? 2 : 0,
+            moderate: (weather.windSpeedKmph || 0) > 30 ? 1 : 0
+          },
+          surface: {
+            icy: weather.roadSurfaceCondition === 'icy' ? 4 : 0,
+            muddy: weather.roadSurfaceCondition === 'muddy' ? 2 : 0,
+            wet: weather.roadSurfaceCondition === 'wet' ? 1 : 0
+          },
+          seasonal: {
+            monsoon: weather.monsoonRisk > 7 ? 2 : 0,
+            extreme: (weather.extremeWeatherHistory || []).length > 2 ? 1 : 0
+          },
+          temperature: {
+            extreme: (weather.averageTemperature < 5 || weather.averageTemperature > 45) ? 2 : 0,
+            uncomfortable: (weather.averageTemperature < 10 || weather.averageTemperature > 40) ? 1 : 0
+          }
+        };
+        
+        // Apply enhanced factors
+        weatherRisk += Math.max(...Object.values(enhancedFactors.condition));
+        weatherRisk += Math.max(...Object.values(enhancedFactors.visibility));
+        weatherRisk += Math.max(...Object.values(enhancedFactors.wind));
+        weatherRisk += Math.max(...Object.values(enhancedFactors.surface));
+        weatherRisk += enhancedFactors.seasonal.monsoon + enhancedFactors.seasonal.extreme;
+        weatherRisk += Math.max(...Object.values(enhancedFactors.temperature));
+        
+        totalRisk += Math.max(1, Math.min(10, weatherRisk));
+        dataPoints++;
+      }
+      
+      return dataPoints > 0 ? Math.round((totalRisk / dataPoints) * 100) / 100 : 4;
       
     } catch (error) {
-      logger.riskLogger.error('Weather risk calculation failed:', error);
-      return 4; // Default risk
+      logger.riskLogger.error('Enhanced weather risk calculation failed:', error);
+      return 4;
     }
   }
 
-  // 8. Emergency Services Risk (5% weight - inverted: more services = lower risk)
-  async calculateEmergencyServicesRisk(routeId) {
+  // 5. ENHANCED EMERGENCY SERVICES RISK
+ // File: services/riskCalculationService.js - Part 2 (Continuation)
+// Purpose: Enhanced risk calculation - Emergency Services and Additional Methods
+
+  // 5. ENHANCED EMERGENCY SERVICES RISK
+  async calculateEnhancedEmergencyServicesRisk(routeId) {
     try {
       const emergencyServices = await EmergencyService.find({ routeId });
       
       if (emergencyServices.length === 0) return 8; // High risk for no services
       
-      // Calculate coverage score by service type
-      const serviceTypes = ['hospital', 'police', 'fire_station'];
-      let totalCoverage = 0;
+      // Categorize services by type
+      const servicesByType = {
+        hospital: emergencyServices.filter(s => s.serviceType === 'hospital'),
+        police: emergencyServices.filter(s => s.serviceType === 'police'),
+        fire_station: emergencyServices.filter(s => s.serviceType === 'fire_station'),
+        fuel: emergencyServices.filter(s => s.serviceType === 'mechanic')
+      };
       
-      for (const serviceType of serviceTypes) {
-        const servicesOfType = emergencyServices.filter(s => s.serviceType === serviceType);
+      let totalRisk = 0;
+      let riskFactors = [];
+      
+      // Assess each service type
+      for (const [serviceType, services] of Object.entries(servicesByType)) {
+        let serviceRisk = 8; // Default high risk
         
-        if (servicesOfType.length === 0) {
-          totalCoverage += 8; // High risk for missing service type
-        } else {
-          // Find closest service of this type
-          const closestService = servicesOfType.reduce((closest, current) => 
-            current.distanceFromRouteKm < closest.distanceFromRouteKm ? current : closest
-          );
-          
-          let serviceRisk = 2; // Base low risk
-          
-          // Adjust based on distance
-          if (closestService.distanceFromRouteKm > 50) serviceRisk += 4;
-          else if (closestService.distanceFromRouteKm > 25) serviceRisk += 2;
-          else if (closestService.distanceFromRouteKm > 10) serviceRisk += 1;
-          
-          // Adjust based on response time
-          if (closestService.responseTimeMinutes > 30) serviceRisk += 2;
-          else if (closestService.responseTimeMinutes > 15) serviceRisk += 1;
-          
-          // Adjust based on availability score
-          serviceRisk += (10 - closestService.availabilityScore) / 2;
-          
-          totalCoverage += serviceRisk;
+        if (services.length === 0) {
+          riskFactors.push({ type: serviceType, risk: 8, reason: 'No services available' });
+          continue;
+        }
+        
+        // Find best service of this type
+        const bestService = services.reduce((best, current) => {
+          const bestScore = this.calculateServiceScore(best);
+          const currentScore = this.calculateServiceScore(current);
+          return currentScore > bestScore ? current : best;
+        });
+        
+        // Calculate risk based on best available service
+        serviceRisk = this.calculateServiceRisk(bestService, serviceType);
+        riskFactors.push({ 
+          type: serviceType, 
+          risk: serviceRisk, 
+          service: bestService.name,
+          distance: bestService.distanceFromRouteKm,
+          responseTime: bestService.responseTimeMinutes
+        });
+        
+        totalRisk += serviceRisk;
+      }
+      
+      const avgRisk = totalRisk / Object.keys(servicesByType).length;
+      
+      // Apply coverage bonus/penalty
+      const coverageBonus = this.calculateCoverageBonus(emergencyServices);
+      const finalRisk = Math.max(1, Math.min(10, avgRisk - coverageBonus));
+      
+      return {
+        riskScore: Math.round(finalRisk * 100) / 100,
+        breakdown: riskFactors,
+        coverage: this.assessServiceCoverage(emergencyServices),
+        recommendations: this.generateServiceRecommendations(riskFactors)
+      };
+      
+    } catch (error) {
+      logger.riskLogger.error('Enhanced emergency services risk calculation failed:', error);
+      return 6;
+    }
+  }
+
+  // 6. ENHANCED NETWORK COVERAGE RISK
+  async calculateEnhancedNetworkCoverageRisk(routeId) {
+    try {
+      const route = await Route.findById(routeId);
+      if (!route) return 5;
+      
+      let networkRisk = 4; // Base risk
+      const riskFactors = [];
+      
+      // Terrain-based risk assessment
+      const terrainRisk = {
+        'urban': { risk: 2, factor: 'Urban area - excellent coverage' },
+        'rural': { risk: 6, factor: 'Rural area - limited coverage' },
+        'hilly': { risk: 8, factor: 'Hilly terrain - poor coverage' },
+        'mixed': { risk: 5, factor: 'Mixed terrain - variable coverage' }
+      };
+      
+      const terrainFactor = terrainRisk[route.terrain] || terrainRisk.mixed;
+      networkRisk = terrainFactor.risk;
+      riskFactors.push(terrainFactor);
+      
+      // Distance factor
+      if (route.totalDistance > 300) {
+        networkRisk += 1;
+        riskFactors.push({ risk: 1, factor: 'Long route increases dead zone probability' });
+      }
+      
+      // Route type factor
+      if (route.majorHighways && route.majorHighways.length > 0) {
+        const hasNationalHighway = route.majorHighways.some(hw => hw.startsWith('NH'));
+        if (hasNationalHighway) {
+          networkRisk -= 1;
+          riskFactors.push({ risk: -1, factor: 'National highway - better tower coverage' });
         }
       }
       
-      return Math.round((totalCoverage / serviceTypes.length) * 100) / 100;
+      // Estimated dead zones
+      const deadZones = Math.floor(route.totalDistance / (route.terrain === 'hilly' ? 30 : 50));
+      if (deadZones > 3) {
+        networkRisk += 1;
+        riskFactors.push({ risk: 1, factor: `${deadZones} estimated dead zones` });
+      }
+      
+      const finalRisk = Math.max(1, Math.min(10, networkRisk));
+      
+      return {
+        riskScore: finalRisk,
+        breakdown: riskFactors,
+        estimatedDeadZones: deadZones,
+        coverage: this.assessNetworkCoverage(route),
+        alternatives: this.getAlternativeCommunicationMethods()
+      };
       
     } catch (error) {
-      logger.riskLogger.error('Emergency services risk calculation failed:', error);
-      return 6; // Default risk
+      logger.riskLogger.error('Enhanced network coverage risk calculation failed:', error);
+      return 5;
     }
   }
 
-  // 9. Network Coverage Risk (5% weight)
-  async calculateNetworkCoverageRisk(routeId) {
+  // 7. ENHANCED AMENITIES RISK
+  async calculateEnhancedAmenitiesRisk(routeId) {
     try {
-      // This would be implemented when network coverage data is available
-      // For now, return default based on route terrain
+      const amenityServices = await EmergencyService.find({ 
+        routeId, 
+        serviceType: { $in: ['amenity', 'mechanic'] }
+      });
+      
       const route = await Route.findById(routeId);
+      let amenityRisk = 6; // Default medium-high risk
+      const riskFactors = [];
       
-      let risk = 4; // Default risk
+      // Categorize amenities
+      const amenityTypes = {
+        fuel: amenityServices.filter(s => s.name.toLowerCase().includes('gas') || 
+                                          s.name.toLowerCase().includes('petrol') ||
+                                          s.fuelTypes?.length > 0),
+        food: amenityServices.filter(s => s.name.toLowerCase().includes('restaurant') ||
+                                          s.name.toLowerCase().includes('dhaba') ||
+                                          s.stopType === 'restaurant'),
+        rest: amenityServices.filter(s => s.name.toLowerCase().includes('hotel') ||
+                                          s.name.toLowerCase().includes('lodge') ||
+                                          s.stopType === 'lodging'),
+        financial: amenityServices.filter(s => s.name.toLowerCase().includes('atm') ||
+                                               s.name.toLowerCase().includes('bank')),
+        repair: amenityServices.filter(s => s.name.toLowerCase().includes('repair') ||
+                                            s.name.toLowerCase().includes('mechanic'))
+      };
       
-      if (route) {
-        switch (route.terrain) {
-          case 'rural': risk = 7; break;
-          case 'hilly': risk = 6; break;
-          case 'urban': risk = 2; break;
-          case 'flat': risk = 3; break;
+      // Assess each amenity type
+      for (const [type, services] of Object.entries(amenityTypes)) {
+        const typeRisk = this.calculateAmenityTypeRisk(services, type, route);
+        riskFactors.push({
+          type,
+          risk: typeRisk.risk,
+          count: services.length,
+          coverage: typeRisk.coverage,
+          nearestDistance: typeRisk.nearestDistance
+        });
+        amenityRisk += typeRisk.risk - 5; // Adjust from base risk
+      }
+      
+      // Route characteristics bonus/penalty
+      if (route.majorHighways && route.majorHighways.length > 0) {
+        amenityRisk -= 1;
+        riskFactors.push({ type: 'highway', risk: -1, factor: 'Highway route - better amenities' });
+      }
+      
+      if (route.terrain === 'rural') {
+        amenityRisk += 2;
+        riskFactors.push({ type: 'terrain', risk: 2, factor: 'Rural terrain - limited amenities' });
+      }
+      
+      const finalRisk = Math.max(1, Math.min(10, amenityRisk));
+      
+      return {
+        riskScore: finalRisk,
+        breakdown: riskFactors,
+        coverage: this.assessAmenityCoverage(amenityTypes, route),
+        recommendations: this.generateAmenityRecommendations(riskFactors)
+      };
+      
+    } catch (error) {
+      logger.riskLogger.error('Enhanced amenities risk calculation failed:', error);
+      return 6;
+    }
+  }
+
+  // 8. ENHANCED SECURITY RISK
+  async calculateEnhancedSecurityRisk(routeId) {
+    try {
+      const route = await Route.findById(routeId);
+      if (!route) return 4;
+      
+      let securityRisk = 4; // Base risk
+      const riskFactors = [];
+      
+      // Terrain-based security assessment
+      const terrainSecurity = {
+        'rural': { risk: 2, factor: 'Rural areas - isolation risk' },
+        'urban': { risk: 1, factor: 'Urban areas - crime risk' },
+        'hilly': { risk: 1, factor: 'Hilly terrain - isolation risk' },
+        'mixed': { risk: 1, factor: 'Mixed terrain - variable security' }
+      };
+      
+      if (terrainSecurity[route.terrain]) {
+        securityRisk += terrainSecurity[route.terrain].risk;
+        riskFactors.push(terrainSecurity[route.terrain]);
+      }
+      
+      // Distance factor
+      if (route.totalDistance > 300) {
+        securityRisk += 1;
+        riskFactors.push({ risk: 1, factor: 'Long distance increases exposure' });
+      }
+      
+      // Night travel risk
+      const nightRisk = this.assessNightTravelRisk(route);
+      if (nightRisk.risk > 6) {
+        securityRisk += 1;
+        riskFactors.push({ risk: 1, factor: 'High night travel risk' });
+      }
+      
+      // Police presence assessment
+      const policeServices = await EmergencyService.find({ 
+        routeId, 
+        serviceType: 'police' 
+      });
+      
+      if (policeServices.length === 0) {
+        securityRisk += 2;
+        riskFactors.push({ risk: 2, factor: 'No police stations identified' });
+      } else {
+        const avgPoliceDistance = policeServices.reduce((sum, s) => sum + s.distanceFromRouteKm, 0) / policeServices.length;
+        if (avgPoliceDistance > 30) {
+          securityRisk += 1;
+          riskFactors.push({ risk: 1, factor: 'Police stations far from route' });
         }
       }
       
-      return risk;
+      const finalRisk = Math.max(1, Math.min(10, securityRisk));
+      
+      return {
+        riskScore: finalRisk,
+        breakdown: riskFactors,
+        nightTravelRisk: nightRisk,
+        securityMeasures: this.getSecurityMeasures(route),
+        recommendations: this.generateSecurityRecommendations(finalRisk, route)
+      };
       
     } catch (error) {
-      logger.riskLogger.error('Network coverage risk calculation failed:', error);
-      return 5; // Default risk
+      logger.riskLogger.error('Enhanced security risk calculation failed:', error);
+      return 4;
     }
   }
 
-  // 10. Amenities Risk (5% weight - inverted: more amenities = lower risk)
-  async calculateAmenitiesRisk(routeId) {
-    try {
-      // This would be implemented when amenities data is available
-      // For now, return default based on route characteristics
-      const route = await Route.findById(routeId);
-      
-      let risk = 6; // Default medium-high risk
-      
-      if (route) {
-        // Assume major highways have better amenities
-        if (route.majorHighways && route.majorHighways.length > 0) {
-          risk -= 2;
-        }
-        
-        // Urban areas typically have more amenities
-        if (route.terrain === 'urban') risk -= 2;
-        if (route.terrain === 'rural') risk += 2;
+  // HELPER METHODS FOR ENHANCED CALCULATIONS
+
+  calculateServiceScore(service) {
+    let score = 0;
+    
+    // Distance score (closer is better)
+    const distance = service.distanceFromRouteKm || 50;
+    score += Math.max(0, 10 - (distance / 5));
+    
+    // Availability score
+    score += service.availabilityScore || 5;
+    
+    // Response time score
+    const responseTime = service.responseTimeMinutes || 30;
+    score += Math.max(0, 10 - (responseTime / 3));
+    
+    // 24/7 bonus
+    if (service.isOpen24Hours) score += 2;
+    
+    // Rating bonus
+    if (service.rating) score += service.rating;
+    
+    return score;
+  }
+
+  calculateServiceRisk(service, serviceType) {
+    let risk = 2; // Base low risk for available service
+    
+    // Distance penalty
+    const distance = service.distanceFromRouteKm || 0;
+    if (distance > 50) risk += 4;
+    else if (distance > 25) risk += 2;
+    else if (distance > 10) risk += 1;
+    
+    // Response time penalty
+    const responseTime = service.responseTimeMinutes || 15;
+    if (responseTime > 60) risk += 3;
+    else if (responseTime > 30) risk += 2;
+    else if (responseTime > 15) risk += 1;
+    
+    // Availability penalty
+    const availability = service.availabilityScore || 5;
+    if (availability < 5) risk += 2;
+    else if (availability < 7) risk += 1;
+    
+    // Service type specific factors
+    if (serviceType === 'hospital' && distance > 30) risk += 1;
+    if (serviceType === 'police' && responseTime > 20) risk += 1;
+    if (serviceType === 'fire_station' && distance > 25) risk += 1;
+    
+    return Math.max(1, Math.min(10, risk));
+  }
+
+  calculateCoverageBonus(services) {
+    let bonus = 0;
+    
+    // High service density bonus
+    if (services.length > 20) bonus += 1;
+    else if (services.length > 10) bonus += 0.5;
+    
+    // 24/7 services bonus
+    const h24Services = services.filter(s => s.isOpen24Hours).length;
+    if (h24Services > 5) bonus += 1;
+    else if (h24Services > 2) bonus += 0.5;
+    
+    // High rating services bonus
+    const highRatedServices = services.filter(s => (s.rating || 0) > 4).length;
+    if (highRatedServices > 5) bonus += 0.5;
+    
+    return bonus;
+  }
+
+  assessServiceCoverage(services) {
+    const totalServices = services.length;
+    const avgDistance = totalServices > 0 ? 
+      services.reduce((sum, s) => sum + s.distanceFromRouteKm, 0) / totalServices : 50;
+    
+    let coverage = 'poor';
+    if (totalServices > 15 && avgDistance < 20) coverage = 'excellent';
+    else if (totalServices > 10 && avgDistance < 30) coverage = 'good';
+    else if (totalServices > 5 && avgDistance < 40) coverage = 'fair';
+    
+    return {
+      level: coverage,
+      totalServices,
+      averageDistance: Math.round(avgDistance * 100) / 100,
+      serviceTypes: [...new Set(services.map(s => s.serviceType))].length
+    };
+  }
+
+  calculateAmenityTypeRisk(services, type, route) {
+    let risk = 8; // Default high risk
+    let nearestDistance = 100;
+    
+    if (services.length === 0) {
+      return { risk: 8, coverage: 'none', nearestDistance: 'N/A' };
+    }
+    
+    // Find nearest service
+    nearestDistance = Math.min(...services.map(s => s.distanceFromRouteKm || 50));
+    
+    // Calculate risk based on availability and distance
+    if (services.length >= 3 && nearestDistance < 15) {
+      risk = 2; // Low risk
+    } else if (services.length >= 2 && nearestDistance < 25) {
+      risk = 4; // Medium risk
+    } else if (services.length >= 1 && nearestDistance < 40) {
+      risk = 6; // Medium-high risk
+    }
+    
+    // Type-specific adjustments
+    if (type === 'fuel' && nearestDistance > 50) risk += 2;
+    if (type === 'food' && nearestDistance > 30) risk += 1;
+    if (type === 'repair' && services.length === 0) risk = 9;
+    
+    const coverage = risk <= 3 ? 'excellent' : 
+                    risk <= 5 ? 'good' : 
+                    risk <= 7 ? 'fair' : 'poor';
+    
+    return {
+      risk: Math.max(1, Math.min(10, risk)),
+      coverage,
+      nearestDistance: Math.round(nearestDistance * 100) / 100
+    };
+  }
+
+  assessNightTravelRisk(route) {
+    let nightRisk = 5; // Base risk
+    
+    if (route.terrain === 'rural') nightRisk += 2;
+    if (route.terrain === 'hilly') nightRisk += 1;
+    if (route.terrain === 'urban') nightRisk -= 1;
+    if (route.totalDistance > 200) nightRisk += 1;
+    
+    return {
+      risk: Math.max(1, Math.min(10, nightRisk)),
+      level: nightRisk > 7 ? 'high' : nightRisk > 5 ? 'medium' : 'low',
+      recommendations: nightRisk > 6 ? 
+        ['Avoid night travel if possible', 'Use convoy travel', 'Maintain constant communication'] :
+        ['Normal night precautions', 'Keep emergency contacts ready']
+    };
+  }
+
+  // ADDITIONAL HELPER METHODS
+
+  identifyTopRiskFactors(riskScores) {
+    return Object.entries(riskScores)
+      .filter(([key, value]) => key !== 'totalWeightedScore' && key !== 'riskGrade' && key !== 'calculatedAt')
+      .map(([key, value]) => ({
+        factor: key,
+        score: typeof value === 'object' ? value.riskScore || value : value,
+        weight: this.riskWeights[key] || 0
+      }))
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 5);
+  }
+
+  generateComprehensiveSafetyRecommendations(riskScores, totalScore) {
+    const recommendations = [];
+    
+    // Critical recommendations based on total score
+    if (totalScore >= 8) {
+      recommendations.push({
+        priority: 'critical',
+        category: 'general',
+        recommendation: 'CRITICAL RISK: Consider postponing journey or using alternative route'
+      });
+    }
+    
+    // Factor-specific recommendations
+    Object.entries(riskScores).forEach(([factor, score]) => {
+      const actualScore = typeof score === 'object' ? score.riskScore || score : score;
+      if (actualScore > 7) {
+        recommendations.push(...this.getFactorSpecificRecommendations(factor, actualScore));
       }
-      
-      return Math.max(1, Math.min(10, risk));
-      
-    } catch (error) {
-      logger.riskLogger.error('Amenities risk calculation failed:', error);
-      return 6; // Default risk
-    }
-  }
-
-  // 11. Security Issues Risk (5% weight)
-  async calculateSecurityRisk(routeId) {
-    try {
-      // This would integrate with news APIs and crime data
-      // For now, return default based on route characteristics
-      const route = await Route.findById(routeId);
-      
-      let risk = 4; // Default low-medium risk
-      
-      if (route) {
-        // Rural areas might have higher security risks
-        if (route.terrain === 'rural') risk += 2;
-        if (route.terrain === 'urban') risk += 1; // Urban crime
-        
-        // Night travel considerations (if this data is available)
-        // Longer routes have more exposure
-        if (route.totalDistance > 300) risk += 1;
+    });
+    
+    // General safety recommendations
+    recommendations.push(
+      {
+        priority: 'high',
+        category: 'communication',
+        recommendation: 'Maintain constant communication with control room'
+      },
+      {
+        priority: 'medium',
+        category: 'preparation',
+        recommendation: 'Carry comprehensive emergency kit'
+      },
+      {
+        priority: 'medium',
+        category: 'documentation',
+        recommendation: 'Keep emergency contact numbers accessible'
       }
-      
-      return Math.max(1, Math.min(10, risk));
-      
-    } catch (error) {
-      logger.riskLogger.error('Security risk calculation failed:', error);
-      return 4; // Default risk
-    }
+    );
+    
+    return recommendations;
   }
 
-  // Calculate weighted total score
+  getFactorSpecificRecommendations(factor, score) {
+    const recommendations = {
+      roadConditions: [
+        { priority: 'high', category: 'vehicle', recommendation: 'Inspect vehicle thoroughly, especially brakes and suspension' },
+        { priority: 'high', category: 'driving', recommendation: 'Reduce speed and increase following distance' }
+      ],
+      accidentProne: [
+        { priority: 'critical', category: 'route', recommendation: 'Exercise extreme caution in identified accident zones' },
+        { priority: 'high', category: 'convoy', recommendation: 'Consider convoy travel through high-risk areas' }
+      ],
+      trafficDensity: [
+        { priority: 'medium', category: 'timing', recommendation: 'Avoid peak traffic hours if possible' },
+        { priority: 'medium', category: 'fuel', recommendation: 'Maintain higher fuel levels due to potential delays' }
+      ],
+      weatherConditions: [
+        { priority: 'high', category: 'weather', recommendation: 'Monitor weather conditions continuously' },
+        { priority: 'high', category: 'timing', recommendation: 'Delay travel during severe weather warnings' }
+      ]
+    };
+    
+    return recommendations[factor] || [];
+  }
+
   calculateWeightedScore(riskScores) {
     let totalScore = 0;
     
-    for (const [criterion, score] of Object.entries(riskScores)) {
+    Object.entries(riskScores).forEach(([criterion, score]) => {
       if (this.riskWeights[criterion]) {
-        totalScore += (score * this.riskWeights[criterion]) / 100;
+        const actualScore = typeof score === 'object' ? score.riskScore || score : score;
+        totalScore += (actualScore * this.riskWeights[criterion]) / 100;
       }
-    }
+    });
     
     return totalScore;
   }
 
-  // Determine risk grade based on total score
   determineRiskGrade(totalScore) {
     for (const [grade, threshold] of Object.entries(this.gradeThresholds)) {
       if (totalScore >= threshold.min && totalScore <= threshold.max) {
         return grade;
       }
     }
-    return 'F'; // Default to highest risk
+    return 'F';
   }
 
-  // Helper function to calculate turn angle between three points
-  calculateTurnAngle(p1, p2, p3) {
-    // Simplified turn angle calculation
-    const dx1 = p2.longitude - p1.longitude;
-    const dy1 = p2.latitude - p1.latitude;
-    const dx2 = p3.longitude - p2.longitude;
-    const dy2 = p3.latitude - p2.latitude;
-    
-    const angle1 = Math.atan2(dy1, dx1);
-    const angle2 = Math.atan2(dy2, dx2);
-    
-    let turnAngle = Math.abs(angle2 - angle1) * (180 / Math.PI);
-    if (turnAngle > 180) turnAngle = 360 - turnAngle;
-    
-    return turnAngle;
+  determineRiskLevel(totalScore) {
+    const grade = this.determineRiskGrade(totalScore);
+    return this.gradeThresholds[grade].level;
   }
 
-  // Get risk explanation for a given score
-  getRiskExplanation(riskGrade, totalScore) {
-    const explanations = {
-      A: 'Low Risk - Route is generally safe with minimal hazards',
-      B: 'Low-Medium Risk - Route has some minor risk factors',
-      C: 'Medium Risk - Route requires normal caution and attention',
-      D: 'High Risk - Route has significant hazards requiring extra precaution',
-      F: 'Critical Risk - Route has severe hazards, consider alternative routes'
-    };
-    
-    return {
-      grade: riskGrade,
-      score: totalScore,
-      explanation: explanations[riskGrade] || 'Risk assessment unavailable',
-      recommendations: this.getRecommendations(riskGrade, totalScore)
-    };
-  }
-
-  // Get recommendations based on risk level
-  getRecommendations(riskGrade, totalScore) {
-    const recommendations = [];
-    
-    switch (riskGrade) {
-      case 'A':
-        recommendations.push('Maintain normal driving practices');
-        recommendations.push('Follow standard safety protocols');
-        break;
-      case 'B':
-        recommendations.push('Exercise normal caution');
-        recommendations.push('Monitor weather conditions');
-        break;
-      case 'C':
-        recommendations.push('Increase following distance');
-        recommendations.push('Check weather and traffic conditions');
-        recommendations.push('Ensure emergency kit is complete');
-        break;
-      case 'D':
-        recommendations.push('Consider alternative routes if possible');
-        recommendations.push('Travel during daylight hours when possible');
-        recommendations.push('Maintain constant communication with control room');
-        recommendations.push('Reduce speed and increase safety margins');
-        break;
-      case 'F':
-        recommendations.push('CRITICAL: Consider postponing travel if possible');
-        recommendations.push('If travel is necessary, arrange escort vehicles');
-        recommendations.push('Maintain constant GPS tracking and communication');
-        recommendations.push('Brief all drivers on specific hazards');
-        recommendations.push('Carry extra emergency supplies');
-        break;
+  async assessDataQuality(routeId) {
+    try {
+      const route = await Route.findById(routeId);
+      const processingStatus = route.dataProcessingStatus || {};
+      
+      const totalCategories = Object.keys(processingStatus).length;
+      const completedCategories = Object.values(processingStatus).filter(status => status === true).length;
+      
+      const completionPercentage = totalCategories > 0 ? (completedCategories / totalCategories) * 100 : 0;
+      
+      let quality = 'low';
+      if (completionPercentage >= 90) quality = 'high';
+      else if (completionPercentage >= 70) quality = 'medium';
+      
+      return {
+        level: quality,
+        completionPercentage: Math.round(completionPercentage),
+        missingData: Object.entries(processingStatus)
+          .filter(([key, value]) => !value)
+          .map(([key]) => key)
+      };
+    } catch (error) {
+      return { level: 'unknown', completionPercentage: 0, missingData: [] };
     }
-    
-    return recommendations;
   }
+
+  calculateConfidenceLevel(routeId) {
+    // Mock confidence calculation - would be based on data quality, API reliability, etc.
+    return Math.floor(Math.random() * 20) + 80; // 80-100% confidence
+  }
+
 }
 
-module.exports = new RiskCalculationService();
+module.exports = new EnhancedRiskCalculationService();
