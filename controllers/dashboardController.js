@@ -1,6 +1,7 @@
 // File: controllers/dashboardController.js
 // Purpose: Dashboard data and analytics
 
+const mongoose = require('mongoose');
 const Route = require('../models/Route');
 const RoadCondition = require('../models/RoadCondition');
 const AccidentProneArea = require('../models/AccidentProneArea');
@@ -13,7 +14,6 @@ const logger = require('../utils/logger');
 exports.getDashboardOverview = async (req, res) => {
   try {
     const userId = req.user.id;
-    const mongoose = require('mongoose');
     
     // Basic route statistics
     const totalRoutes = await Route.countDocuments({ 
@@ -22,7 +22,7 @@ exports.getDashboardOverview = async (req, res) => {
     });
     
     const riskLevelCounts = await Route.aggregate([
-      { $match: { userId: mongoose.Types.ObjectId(userId), status: { $ne: 'deleted' } }},
+      { $match: { userId: new mongoose.Types.ObjectId(userId), status: { $ne: 'deleted' } }},
       { $group: { _id: '$riskLevel', count: { $sum: 1 } }}
     ]);
     
@@ -58,7 +58,7 @@ exports.getDashboardOverview = async (req, res) => {
     
     // Processing status
     const processingStatus = await Route.aggregate([
-      { $match: { userId: mongoose.Types.ObjectId(userId), status: { $ne: 'deleted' } }},
+      { $match: { userId: new mongoose.Types.ObjectId(userId), status: { $ne: 'deleted' } }},
       {
         $project: {
           routeId: 1,
@@ -106,7 +106,7 @@ exports.getDashboardOverview = async (req, res) => {
     });
     
   } catch (error) {
-    logger.error('Dashboard overview error:', error);
+    console.error('Dashboard overview error:', error);
     res.status(500).json({
       success: false,
       message: 'Error fetching dashboard data'
@@ -145,7 +145,7 @@ exports.getRouteStatistics = async (req, res) => {
     const routeCreationTrend = await Route.aggregate([
       {
         $match: {
-          userId: mongoose.Types.ObjectId(userId),
+          userId: new mongoose.Types.ObjectId(userId),
           createdAt: { $gte: startDate, $lte: endDate },
           status: { $ne: 'deleted' }
         }
@@ -168,7 +168,7 @@ exports.getRouteStatistics = async (req, res) => {
     const riskTrends = await Route.aggregate([
       {
         $match: {
-          userId: mongoose.Types.ObjectId(userId),
+          userId: new mongoose.Types.ObjectId(userId),
           createdAt: { $gte: startDate, $lte: endDate },
           status: { $ne: 'deleted' }
         }
@@ -193,7 +193,7 @@ exports.getRouteStatistics = async (req, res) => {
     const popularRoutes = await Route.aggregate([
       {
         $match: {
-          userId: mongoose.Types.ObjectId(userId),
+          userId: new mongoose.Types.ObjectId(userId),
           status: { $ne: 'deleted' }
         }
       },
@@ -227,7 +227,7 @@ exports.getRouteStatistics = async (req, res) => {
     });
     
   } catch (error) {
-    logger.error('Route statistics error:', error);
+    console.error('Route statistics error:', error);
     res.status(500).json({
       success: false,
       message: 'Error fetching route statistics'
@@ -243,7 +243,7 @@ exports.getRiskAlerts = async (req, res) => {
     
     // Find routes with high risk scores
     let matchCondition = {
-      userId: mongoose.Types.ObjectId(userId),
+      userId: new mongoose.Types.ObjectId(userId),
       status: 'active'
     };
     
@@ -322,7 +322,7 @@ exports.getRiskAlerts = async (req, res) => {
     });
     
   } catch (error) {
-    logger.error('Risk alerts error:', error);
+    console.error('Risk alerts error:', error);
     res.status(500).json({
       success: false,
       message: 'Error fetching risk alerts'
@@ -388,7 +388,7 @@ exports.getRouteAnalytics = async (req, res) => {
     });
     
   } catch (error) {
-    logger.error('Route analytics error:', error);
+    console.error('Route analytics error:', error);
     res.status(500).json({
       success: false,
       message: 'Error fetching route analytics'
@@ -399,7 +399,7 @@ exports.getRouteAnalytics = async (req, res) => {
 // Helper functions
 async function getTotalDistance(userId) {
   const result = await Route.aggregate([
-    { $match: { userId: mongoose.Types.ObjectId(userId), status: { $ne: 'deleted' } }},
+    { $match: { userId: new mongoose.Types.ObjectId(userId), status: { $ne: 'deleted' } }},
     { $group: { _id: null, totalDistance: { $sum: '$totalDistance' }}}
   ]);
   
@@ -410,7 +410,7 @@ async function getAverageRiskScore(userId) {
   const result = await Route.aggregate([
     { 
       $match: { 
-        userId: mongoose.Types.ObjectId(userId), 
+        userId: new mongoose.Types.ObjectId(userId), 
         status: { $ne: 'deleted' },
         'riskScores.totalWeightedScore': { $exists: true }
       }

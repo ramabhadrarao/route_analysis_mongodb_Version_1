@@ -66,5 +66,4 @@ const weatherConditionSchema = new mongoose.Schema({
   weatherConditionSchema.index({ routeId: 1 });
   weatherConditionSchema.index({ season: 1 });
   
-  // Export for WeatherCondition
-  const WeatherCondition = mongoose.model('WeatherCondition', weatherConditionSchema);
+  module.exports = mongoose.model('WeatherCondition', weatherConditionSchema);

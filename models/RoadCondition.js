@@ -65,5 +65,4 @@ const roadConditionSchema = new mongoose.Schema({
   roadConditionSchema.index({ routeId: 1 });
   roadConditionSchema.index({ latitude: 1, longitude: 1 });
   
-  // Export for RoadCondition
-  const RoadCondition = mongoose.model('RoadCondition', roadConditionSchema);
+  module.exports = mongoose.model('RoadCondition', roadConditionSchema);

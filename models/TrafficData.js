@@ -57,5 +57,4 @@ const trafficDataSchema = new mongoose.Schema({
   trafficDataSchema.index({ routeId: 1 });
   trafficDataSchema.index({ congestionLevel: 1 });
   
-  // Export for TrafficData
-  const TrafficData = mongoose.model('TrafficData', trafficDataSchema);
+  module.exports = mongoose.model('TrafficData', trafficDataSchema);
