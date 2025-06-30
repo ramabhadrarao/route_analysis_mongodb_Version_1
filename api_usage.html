@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Route Risk Implementation Guide</title>
+    <title>DataCollectionService.js - APIs Actually Used</title>
     <style>
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -12,310 +12,434 @@
             max-width: 1200px;
             margin: 0 auto;
             padding: 20px;
+            background-color: #f8f9fa;
         }
-        h1, h2 {
-            color: #2c3e50;
-        }
-        h1 {
-            border-bottom: 2px solid #3498db;
-            padding-bottom: 10px;
+        
+        .header {
+            background: linear-gradient(135deg, #ff6b6b, #ee5a52);
+            color: white;
+            padding: 30px;
+            border-radius: 10px;
             margin-bottom: 30px;
+            text-align: center;
         }
-        .implementation-table {
+        
+        .api-card {
+            background: white;
+            margin: 20px 0;
+            padding: 25px;
+            border-radius: 8px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            border-left: 5px solid #007bff;
+        }
+        
+        .api-used {
+            border-left-color: #28a745;
+        }
+        
+        .api-mock {
+            border-left-color: #ffc107;
+            background-color: #fff9e6;
+        }
+        
+        .code-block {
+            background-color: #2d3748;
+            color: #e2e8f0;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 15px 0;
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            font-size: 14px;
+            overflow-x: auto;
+            border: 1px solid #4a5568;
+        }
+        
+        .status-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: bold;
+            text-transform: uppercase;
+            margin-bottom: 10px;
+        }
+        
+        .status-active {
+            background-color: #d4edda;
+            color: #155724;
+        }
+        
+        .status-mock {
+            background-color: #fff3cd;
+            color: #856404;
+        }
+        
+        .function-name {
+            background-color: #e3f2fd;
+            color: #1565c0;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 0.9em;
+        }
+        
+        .api-endpoint {
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            padding: 10px;
+            border-radius: 4px;
+            font-family: monospace;
+            margin: 10px 0;
+            font-size: 13px;
+        }
+        
+        .warning-box {
+            background-color: #fff3cd;
+            border: 1px solid #ffeaa7;
+            color: #856404;
+            padding: 15px;
+            border-radius: 6px;
+            margin: 20px 0;
+            border-left: 4px solid #f39c12;
+        }
+        
+        .method-table {
             width: 100%;
             border-collapse: collapse;
-            margin: 25px 0;
-            box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
+            margin: 20px 0;
+            background: white;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
         }
-        .implementation-table th, .implementation-table td {
+        
+        .method-table th, .method-table td {
             padding: 12px 15px;
             text-align: left;
-            border-bottom: 1px solid #ddd;
-            vertical-align: top;
+            border-bottom: 1px solid #eee;
         }
-        .implementation-table th {
-            background-color: #3498db;
+        
+        .method-table th {
+            background: linear-gradient(135deg, #667eea, #764ba2);
             color: white;
             font-weight: 600;
         }
-        .implementation-table tr:nth-child(even) {
+        
+        .method-table tr:hover {
             background-color: #f8f9fa;
-        }
-        .implementation-table tr:hover {
-            background-color: #f1f7fd;
-        }
-        .api-status {
-            font-weight: bold;
-            text-align: center;
-            border-radius: 4px;
-            padding: 3px 6px;
-        }
-        .api-full { background-color: #d5f5e3; color: #28b463; } /* Green */
-        .api-partial { background-color: #fdebd0; color: #d35400; } /* Orange */
-        .api-none { background-color: #fadbd8; color: #c0392b; } /* Red */
-        .ml-badge {
-            background-color: #eaf2f8;
-            color: #2874a6;
-            padding: 2px 6px;
-            border-radius: 4px;
-            font-size: 0.8em;
-            font-weight: bold;
-            display: inline-block;
-            margin: 2px;
-        }
-        .tech-tag {
-            background-color: #ebedef;
-            color: #2c3e50;
-            padding: 2px 6px;
-            border-radius: 4px;
-            font-size: 0.8em;
-            display: inline-block;
-            margin: 2px;
-        }
-        .note-box {
-            background-color: #f8f9fa;
-            border-left: 4px solid #3498db;
-            padding: 10px;
-            margin: 10px 0;
-            font-size: 0.9em;
         }
     </style>
 </head>
 <body>
-    <h1>Route Risk Implementation Guide</h1>
-    
-    <div class="note-box">
-        <strong>Implementation Strategy:</strong> This table combines API integrations with potential machine learning enhancements for more accurate risk predictions.
+    <div class="header">
+        <h1>🔍 DataCollectionService.js</h1>
+        <h2>APIs Actually Used Analysis</h2>
+        <p>Detailed breakdown of which APIs are really called vs mocked</p>
     </div>
 
-    <table class="implementation-table">
-        <thead>
-            <tr>
-                <th>Risk Factor</th>
-                <th>Implementation Approach</th>
-                <th>APIs</th>
-                <th>ML Enhancements</th>
-                <th>Status</th>
-            </tr>
-        </thead>
-        <tbody>
-            <tr>
-                <td><strong>Road Conditions</strong></td>
-                <td>
-                    <ul>
-                        <li>Use Mapbox/Here Maps road attributes</li>
-                        <li>Supplement with satellite imagery analysis</li>
-                        <li><span class="tech-tag">Computer Vision</span> for pothole detection</li>
-                    </ul>
-                </td>
-                <td>
-                    <span class="tech-tag">Mapbox</span>
-                    <span class="tech-tag">HERE Maps</span>
-                </td>
-                <td>
-                    <span class="ml-badge">CNN Model</span> for image analysis
-                    <span class="ml-badge">Regression</span> for composite scoring
-                </td>
-                <td><span class="api-status api-partial">Partial</span></td>
-            </tr>
-            <tr>
-                <td><strong>Accident-Prone Areas</strong></td>
-                <td>
-                    <ul>
-                        <li>Aggregate historical accident data</li>
-                        <li>Geospatial clustering analysis</li>
-                        <li>Time-of-day patterns</li>
-                    </ul>
-                </td>
-                <td>
-                    <span class="tech-tag">OpenStreetMap</span>
-                    <span class="tech-tag">Gov Data</span>
-                </td>
-                <td>
-                    <span class="ml-badge">DBSCAN</span> for hotspot detection
-                    <span class="ml-badge">Time Series</span> for temporal patterns
-                </td>
-                <td><span class="api-status api-full">Complete</span></td>
-            </tr>
-            <tr>
-                <td><strong>Sharp/U-Turns</strong></td>
-                <td>
-                    <ul>
-                        <li>Calculate turn angles from GPS path</li>
-                        <li>Elevation change analysis</li>
-                        <li>Road width consideration</li>
-                    </ul>
-                </td>
-                <td>
-                    <span class="tech-tag">Google Directions</span>
-                    <span class="tech-tag">Mapbox</span>
-                </td>
-                <td>
-                    <span class="ml-badge">Path Prediction</span> for danger zones
-                </td>
-                <td><span class="api-status api-full">Complete</span></td>
-            </tr>
-            <tr>
-                <td><strong>Blind Spots</strong></td>
-                <td>
-                    <ul>
-                        <li>LiDAR/terrain data analysis</li>
-                        <li>3D visibility modeling</li>
-                        <li>Driver perspective simulation</li>
-                    </ul>
-                </td>
-                <td>
-                    <span class="tech-tag">OpenElevation</span>
-                    <span class="tech-tag">NASA SRTM</span>
-                </td>
-                <td>
-                    <span class="ml-badge">3D CNN</span> for visibility
-                    <span class="ml-badge">GNN</span> for road network analysis
-                </td>
-                <td><span class="api-status api-none">Custom</span></td>
-            </tr>
-            <tr>
-                <td><strong>Two-Way Traffic</strong></td>
-                <td>
-                    <ul>
-                        <li>OSM oneway tag verification</li>
-                        <li>Road width measurements</li>
-                        <li>Traffic flow analysis</li>
-                    </ul>
-                </td>
-                <td>
-                    <span class="tech-tag">OpenStreetMap</span>
-                    <span class="tech-tag">Mapbox</span>
-                </td>
-                <td>
-                    <span class="ml-badge">Flow Prediction</span>
-                </td>
-                <td><span class="api-status api-partial">Partial</span></td>
-            </tr>
-            <tr>
-                <td><strong>Traffic Density</strong></td>
-                <td>
-                    <ul>
-                        <li>Real-time traffic APIs</li>
-                        <li>Historical congestion patterns</li>
-                        <li>Event-based predictions</li>
-                    </ul>
-                </td>
-                <td>
-                    <span class="tech-tag">Google Traffic</span>
-                    <span class="tech-tag">HERE Traffic</span>
-                    <span class="tech-tag">TomTom</span>
-                </td>
-                <td>
-                    <span class="ml-badge">LSTM</span> for traffic prediction
-                </td>
-                <td><span class="api-status api-full">Complete</span></td>
-            </tr>
-            <tr>
-                <td><strong>Weather Conditions</strong></td>
-                <td>
-                    <ul>
-                        <li>Hyperlocal weather data</li>
-                        <li>Road surface condition mapping</li>
-                        <li>Microclimate detection</li>
-                    </ul>
-                </td>
-                <td>
-                    <span class="tech-tag">OpenWeatherMap</span>
-                    <span class="tech-tag">Visual Crossing</span>
-                    <span class="tech-tag">Tomorrow.io</span>
-                </td>
-                <td>
-                    <span class="ml-badge">Weather Prediction</span>
-                </td>
-                <td><span class="api-status api-full">Complete</span></td>
-            </tr>
-            <tr>
-                <td><strong>Emergency Services</strong></td>
-                <td>
-                    <ul>
-                        <li>POI database queries</li>
-                        <li>Response time estimation</li>
-                        <li>Service availability tracking</li>
-                    </ul>
-                </td>
-                <td>
-                    <span class="tech-tag">Google Places</span>
-                    <span class="tech-tag">OSM</span>
-                </td>
-                <td>
-                    <span class="ml-badge">Location Optimization</span>
-                </td>
-                <td><span class="api-status api-full">Complete</span></td>
-            </tr>
-            <tr>
-                <td><strong>Network Coverage</strong></td>
-                <td>
-                    <ul>
-                        <li>Cell tower mapping</li>
-                        <li>Signal strength modeling</li>
-                        <li>Dead zone prediction</li>
-                    </ul>
-                </td>
-                <td>
-                    <span class="tech-tag">OpenSignal</span>
-                    <span class="tech-tag">CellMapper</span>
-                </td>
-                <td>
-                    <span class="ml-badge">Signal Propagation</span>
-                </td>
-                <td><span class="api-status api-partial">Partial</span></td>
-            </tr>
-            <tr>
-                <td><strong>Amenities</strong></td>
-                <td>
-                    <ul>
-                        <li>POI density analysis</li>
-                        <li>Service gap detection</li>
-                        <li>Accessibility scoring</li>
-                    </ul>
-                </td>
-                <td>
-                    <span class="tech-tag">Google Places</span>
-                    <span class="tech-tag">OSM</span>
-                </td>
-                <td>
-                    <span class="ml-badge">Density Clustering</span>
-                </td>
-                <td><span class="api-status api-full">Complete</span></td>
-            </tr>
-            <tr>
-                <td><strong>Security Risk</strong></td>
-                <td>
-                    <ul>
-                        <li>Crime data integration</li>
-                        <li>Lighting analysis</li>
-                        <li>Population density</li>
-                    </ul>
-                </td>
-                <td>
-                    <span class="tech-tag">CrimeData</span>
-                    <span class="tech-tag">Nightlight Data</span>
-                </td>
-                <td>
-                    <span class="ml-badge">Anomaly Detection</span>
-                    <span class="ml-badge">Risk Prediction</span>
-                </td>
-                <td><span class="api-status api-none">Custom</span></td>
-            </tr>
-        </tbody>
-    </table>
-
-    <div class="note-box">
-        <h3>Machine Learning Implementation Guide</h3>
-        <p><strong>Recommended Approaches:</strong></p>
+    <div class="api-card api-used">
+        <div class="status-badge status-active">ACTIVELY USED</div>
+        <h2>🗺️ Google Places API</h2>
+        <p><strong>Primary API used throughout the service</strong></p>
+        
+        <h3>Functions that call this API:</h3>
         <ul>
-            <li><strong>Computer Vision:</strong> For road condition analysis using satellite/street view images</li>
-            <li><strong>Time Series Forecasting:</strong> For accident prediction and traffic patterns</li>
-            <li><strong>Geospatial Clustering:</strong> For hotspot detection of accidents or crime</li>
-            <li><strong>3D Modeling:</strong> For blind spot identification using elevation data</li>
+            <li><span class="function-name">apiService.findNearbyPlaces()</span></li>
+            <li><span class="function-name">collectDetailedEmergencyServices()</span></li>
+            <li><span class="function-name">collectLawEnforcementServices()</span></li>
+            <li><span class="function-name">collectFireRescueServices()</span></li>
+            <li><span class="function-name">collectFuelStations()</span></li>
+            <li><span class="function-name">collectEducationalInstitutions()</span></li>
+            <li><span class="function-name">collectFoodRestStops()</span></li>
+            <li><span class="function-name">collectFinancialServices()</span></li>
+            <li><span class="function-name">collectTransportationHubs()</span></li>
         </ul>
-        <p><strong>Cloud ML Services:</strong> Consider AWS SageMaker, Google Vertex AI, or Azure ML for deployment</p>
+
+        <h3>API Endpoint Used:</h3>
+        <div class="api-endpoint">
+            https://maps.googleapis.com/maps/api/place/nearbysearch/json<br>
+            ?location={latitude},{longitude}<br>
+            &radius={radius}<br>
+            &type={service_type}<br>
+            &key={GOOGLE_MAPS_API_KEY}
+        </div>
+
+        <h3>Code Implementation:</h3>
+        <div class="code-block">
+const nearbyServices = await apiService.findNearbyPlaces(
+  segment.latitude,
+  segment.longitude,
+  serviceKey,
+  config.radius
+);
+
+// Example service types searched:
+// 'hospital', 'police', 'fire_station', 'gas_station', 
+// 'restaurant', 'bank', 'atm', 'school', 'university'
+        </div>
+    </div>
+
+    <div class="api-card api-used">
+        <div class="status-badge status-active">ACTIVELY USED</div>
+        <h2>🌤️ OpenWeatherMap API</h2>
+        <p><strong>Used for current weather data collection</strong></p>
+        
+        <h3>Functions that call this API:</h3>
+        <ul>
+            <li><span class="function-name">apiService.getWeatherData()</span></li>
+            <li><span class="function-name">collectEnhancedWeatherData()</span></li>
+        </ul>
+
+        <h3>API Endpoint Used:</h3>
+        <div class="api-endpoint">
+            https://api.openweathermap.org/data/2.5/weather<br>
+            ?lat={latitude}<br>
+            &lon={longitude}<br>
+            &appid={OPENWEATHER_API_KEY}<br>
+            &units=metric
+        </div>
+
+        <h3>Code Implementation:</h3>
+        <div class="code-block">
+const currentWeather = await apiService.getWeatherData(
+  segment.latitude, 
+  segment.longitude
+);
+
+// Data collected:
+// - temperature, humidity, pressure
+// - windSpeed, windDirection, visibility
+// - weather condition, description
+        </div>
+    </div>
+
+    <div class="api-card api-used">
+        <div class="status-badge status-active">ACTIVELY USED</div>
+        <h2>🚗 TomTom Traffic API</h2>
+        <p><strong>Used for real-time traffic data (with fallback)</strong></p>
+        
+        <h3>Functions that call this API:</h3>
+        <ul>
+            <li><span class="function-name">apiService.getTrafficData()</span></li>
+            <li><span class="function-name">collectDetailedTrafficData()</span></li>
+        </ul>
+
+        <h3>API Endpoint Used:</h3>
+        <div class="api-endpoint">
+            https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json<br>
+            ?point={latitude},{longitude}<br>
+            &unit=KMPH<br>
+            &key={TOMTOM_API_KEY}
+        </div>
+
+        <h3>Code Implementation:</h3>
+        <div class="code-block">
+const trafficData = await apiService.getTrafficData(
+  segment.latitude, 
+  segment.longitude
+);
+
+// Returns: currentSpeed, freeFlowSpeed, confidence, roadClosure
+// Has fallback values if API fails
+        </div>
+    </div>
+
+    <div class="api-card api-mock">
+        <div class="status-badge status-mock">MOCK IMPLEMENTATION</div>
+        <h2>📍 Google Places Details API</h2>
+        <p><strong>Called but returns mock data</strong></p>
+        
+        <h3>Function that attempts to call this:</h3>
+        <ul>
+            <li><span class="function-name">getPlaceDetails(placeId)</span></li>
+        </ul>
+
+        <div class="warning-box">
+            <strong>⚠️ Mock Implementation:</strong> This function is called throughout the service but currently returns hardcoded mock data instead of making real API calls.
+        </div>
+
+        <h3>Mock Implementation:</h3>
+        <div class="code-block">
+async getPlaceDetails(placeId) {
+  try {
+    // Mock implementation - would use Google Places Details API
+    return {
+      phoneNumber: '+91-' + Math.floor(Math.random() * 10000000000),
+      address: 'Address not available',
+      operatingHours: 'Hours not available',
+      website: '',
+      accessibility: 'Unknown',
+      amenities: []
+    };
+  } catch (error) {
+    return {
+      phoneNumber: 'Not available',
+      address: 'Address not available',
+      operatingHours: 'Hours not available'
+    };
+  }
+}
+        </div>
+    </div>
+
+    <div class="api-card api-mock">
+        <div class="status-badge status-mock">MOCK IMPLEMENTATION</div>
+        <h2>📊 Historical Weather Data</h2>
+        <p><strong>Visual Crossing API - Mock implementation</strong></p>
+        
+        <h3>Function that returns mock data:</h3>
+        <ul>
+            <li><span class="function-name">getHistoricalWeatherPatterns()</span></li>
+        </ul>
+
+        <h3>Mock Implementation:</h3>
+        <div class="code-block">
+async getHistoricalWeatherPatterns(latitude, longitude) {
+  try {
+    // Mock historical weather data - would integrate with weather APIs
+    return {
+      averagePrecipitation: Math.random() * 100,
+      averageUvIndex: Math.random() * 10,
+      extremeEvents: ['Heavy Rain (2023)', 'Hailstorm (2022)']
+    };
+  } catch (error) {
+    return {
+      averagePrecipitation: 50,
+      averageUvIndex: 5,
+      extremeEvents: []
+    };
+  }
+}
+        </div>
+    </div>
+
+    <div class="api-card">
+        <h2>📋 Complete API Usage Summary</h2>
+        
+        <table class="method-table">
+            <thead>
+                <tr>
+                    <th>Collection Method</th>
+                    <th>Primary API Used</th>
+                    <th>Status</th>
+                    <th>Data Points Collected</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>Emergency Services</td>
+                    <td>Google Places API</td>
+                    <td>✅ Active</td>
+                    <td>Hospitals, Police, Fire Stations</td>
+                </tr>
+                <tr>
+                    <td>Fuel Stations</td>
+                    <td>Google Places API</td>
+                    <td>✅ Active</td>
+                    <td>Gas Stations, Repair Shops</td>
+                </tr>
+                <tr>
+                    <td>Food & Rest</td>
+                    <td>Google Places API</td>
+                    <td>✅ Active</td>
+                    <td>Restaurants, Hotels, Cafes</td>
+                </tr>
+                <tr>
+                    <td>Weather Data</td>
+                    <td>OpenWeatherMap API</td>
+                    <td>✅ Active</td>
+                    <td>Current Weather Conditions</td>
+                </tr>
+                <tr>
+                    <td>Traffic Data</td>
+                    <td>TomTom Traffic API</td>
+                    <td>⚠️ With Fallback</td>
+                    <td>Speed, Congestion, Flow</td>
+                </tr>
+                <tr>
+                    <td>Educational Institutions</td>
+                    <td>Google Places API</td>
+                    <td>✅ Active</td>
+                    <td>Schools, Universities, Colleges</td>
+                </tr>
+                <tr>
+                    <td>Financial Services</td>
+                    <td>Google Places API</td>
+                    <td>✅ Active</td>
+                    <td>Banks, ATMs, Post Offices</td>
+                </tr>
+                <tr>
+                    <td>Transportation Hubs</td>
+                    <td>Google Places API</td>
+                    <td>✅ Active</td>
+                    <td>Bus Stations, Train Stations</td>
+                </tr>
+                <tr>
+                    <td>Place Details</td>
+                    <td>Google Places Details API</td>
+                    <td>❌ Mock Only</td>
+                    <td>Phone Numbers, Hours, Addresses</td>
+                </tr>
+                <tr>
+                    <td>Historical Weather</td>
+                    <td>Visual Crossing API</td>
+                    <td>❌ Mock Only</td>
+                    <td>Historical Patterns, Trends</td>
+                </tr>
+                <tr>
+                    <td>Road Conditions</td>
+                    <td>No External API</td>
+                    <td>📊 Algorithmic</td>
+                    <td>Calculated from Route Data</td>
+                </tr>
+                <tr>
+                    <td>Accident Areas</td>
+                    <td>No External API</td>
+                    <td>📊 Algorithmic</td>
+                    <td>Risk Factor Analysis</td>
+                </tr>
+                <tr>
+                    <td>Network Coverage</td>
+                    <td>No External API</td>
+                    <td>📊 Algorithmic</td>
+                    <td>Terrain-Based Estimation</td>
+                </tr>
+                <tr>
+                    <td>Security Analysis</td>
+                    <td>No External API</td>
+                    <td>📊 Algorithmic</td>
+                    <td>Route Characteristic Analysis</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <div class="warning-box">
+        <h3>🎯 Key Insights:</h3>
+        <ul>
+            <li><strong>Google Places API</strong> is the workhorse - used for 80% of data collection</li>
+            <li><strong>OpenWeatherMap API</strong> provides all weather data</li>
+            <li><strong>TomTom Traffic API</strong> is used but has fallback mechanisms</li>
+            <li><strong>Many analyses are algorithmic</strong> - calculated from route characteristics rather than external APIs</li>
+            <li><strong>Place Details API is mocked</strong> - detailed information like phone numbers and hours are generated</li>
+        </ul>
+    </div>
+
+    <div class="api-card">
+        <h2>🔧 API Rate Limiting Strategy</h2>
+        <p>The service implements rate limiting through:</p>
+        <div class="code-block">
+// Sequential processing with delays
+for (const segment of routeSegments) {
+  // Process each segment
+  await new Promise(resolve => setTimeout(resolve, 100)); // 100ms delay
+}
+
+// Limited results per query
+for (const service of nearbyServices.slice(0, 5)) { // Top 5 per segment
+  // Process service
+}
+        </div>
     </div>
 </body>
 </html>

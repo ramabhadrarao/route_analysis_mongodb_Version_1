@@ -1838,4 +1838,4 @@ class EnhancedDataCollectionService {
 
 }
 
-module.exports = new EnhancedDataCollectionService();
+module.exports = new EnhancedDataCollectionService();   
