@@ -8,6 +8,7 @@ const SharpTurn = require('../models/SharpTurn');
 const BlindSpot = require('../models/BlindSpot');
 const Route = require('../models/Route');
 const logger = require('../utils/logger');
+const realBlindSpotCalculator = require('./realBlindSpotCalculations');
 
 class SharpTurnsBlindSpotsAnalysisService {
   constructor() {
@@ -36,50 +37,68 @@ class SharpTurnsBlindSpotsAnalysisService {
 
   // Main analysis function for a route
   async analyzeRoute(routeId) {
-    try {
-      console.log(`🔄 Starting sharp turns and blind spots analysis for route: ${routeId}`);
-      
-      const route = await Route.findById(routeId);
-      if (!route) {
-        throw new Error('Route not found');
-      }
-
-      if (!route.routePoints || route.routePoints.length < 3) {
-        throw new Error('Insufficient GPS points for analysis');
-      }
-
-      // Analyze sharp turns
-      const sharpTurnsResults = await this.analyzeSharpTurns(route);
-      
-      // Analyze blind spots
-      const blindSpotsResults = await this.analyzeBlindSpots(route);
-      
-      const results = {
-        routeId: route._id,
-        routeName: route.routeName,
-        analysisDate: new Date(),
-        sharpTurns: sharpTurnsResults,
-        blindSpots: blindSpotsResults,
-        summary: {
-          totalSharpTurns: sharpTurnsResults.turns.length,
-          criticalTurns: sharpTurnsResults.turns.filter(t => t.riskScore >= 8).length,
-          totalBlindSpots: blindSpotsResults.spots.length,
-          criticalBlindSpots: blindSpotsResults.spots.filter(s => s.riskScore >= 8).length,
-          avgTurnRisk: sharpTurnsResults.avgRiskScore,
-          avgBlindSpotRisk: blindSpotsResults.avgRiskScore
-        }
-      };
-
-      console.log(`✅ Analysis completed for route ${routeId}`);
-      console.log(`📊 Found ${results.summary.totalSharpTurns} sharp turns, ${results.summary.totalBlindSpots} blind spots`);
-      
-      return results;
-      
-    } catch (error) {
-      console.error('Route analysis failed:', error);
-      throw error;
+  try {
+    console.log(`🔄 Starting ENHANCED sharp turns and blind spots analysis for route: ${routeId}`);
+    
+    const route = await Route.findById(routeId);
+    if (!route) {
+      throw new Error('Route not found');
     }
+
+    if (!route.routePoints || route.routePoints.length < 3) {
+      throw new Error('Insufficient GPS points for analysis');
+    }
+
+    // Analyze sharp turns (keep existing)
+    const sharpTurnsResults = await this.analyzeSharpTurns(route);
+    
+    // NEW: Use REAL blind spot calculations
+    console.log('🔍 Using REAL blind spot calculations with Google APIs...');
+    const realBlindSpotsResults = await realBlindSpotCalculator.analyzeAllBlindSpots(routeId);
+    
+    const results = {
+      routeId: route._id,
+      routeName: route.routeName,
+      analysisDate: new Date(),
+      sharpTurns: sharpTurnsResults,
+      blindSpots: {
+        // Real analysis results
+        spots: realBlindSpotsResults.blindSpots || [],
+        totalCount: realBlindSpotsResults.totalBlindSpots || 0,
+        avgRiskScore: realBlindSpotsResults.riskAnalysis?.score || 0,
+        criticalBlindSpots: realBlindSpotsResults.riskAnalysis?.criticalCount || 0,
+        typeBreakdown: realBlindSpotsResults.byType || {},
+        confidence: realBlindSpotsResults.confidence || 0.8,
+        analysisMethod: 'REAL_CALCULATIONS',
+        improvements: {
+          elevationData: 'Google Elevation API',
+          sightLineMethod: 'Ray tracing with earth curvature',
+          obstructionDetection: 'Google Places API + shadow zones',
+          riskAssessment: 'AASHTO engineering standards'
+        }
+      },
+      summary: {
+        totalSharpTurns: sharpTurnsResults.turns?.length || 0,
+        criticalTurns: sharpTurnsResults.turns?.filter(t => t.riskScore >= 8).length || 0,
+        totalBlindSpots: realBlindSpotsResults.totalBlindSpots || 0,
+        criticalBlindSpots: realBlindSpotsResults.riskAnalysis?.criticalCount || 0,
+        avgTurnRisk: sharpTurnsResults.avgRiskScore || 0,
+        avgBlindSpotRisk: realBlindSpotsResults.riskAnalysis?.score || 0,
+        overallRiskLevel: realBlindSpotsResults.riskAnalysis?.level || 'LOW'
+      },
+      recommendations: realBlindSpotsResults.recommendations || []
+    };
+
+    console.log(`✅ ENHANCED analysis completed for route ${routeId}`);
+    console.log(`📊 Found ${results.summary.totalSharpTurns} sharp turns, ${results.summary.totalBlindSpots} REAL blind spots`);
+    
+    return results;
+    
+  } catch (error) {
+    console.error('Enhanced route analysis failed:', error);
+    throw error;
   }
+}
 
   // SHARP TURNS ANALYSIS
   async analyzeSharpTurns(route) {
@@ -509,51 +528,57 @@ class SharpTurnsBlindSpotsAnalysisService {
 
   async checkElevationBlindSpot(currentPoint, routePoints, currentIndex) {
   try {
-    // Check elevation changes for crest blind spots
-    const windowSize = 5; // Check 5 points before and after
+    // Use the NEW real calculator
+    const realCalculator = require('./realBlindSpotCalculations');
+    const windowSize = 5;
     const startIndex = Math.max(0, currentIndex - windowSize);
     const endIndex = Math.min(routePoints.length - 1, currentIndex + windowSize);
-
-    const elevations = [];
-    for (let i = startIndex; i <= endIndex; i++) {
-      // Mock elevation data - in production, use Google Elevation API
-      const elevation = await this.getElevation(routePoints[i]);
-      elevations.push(elevation);
-    }
-
-    const currentElevation = elevations[currentIndex - startIndex];
-    const maxElevation = Math.max(...elevations);
-    const elevationDiff = maxElevation - Math.min(...elevations);
-
-    // Check if current point is near the peak and elevation change is significant
-    const isNearPeak = Math.abs(currentElevation - maxElevation) < 5; // Within 5m of peak
-    const significantChange = elevationDiff > 20; // More than 20m elevation change
-
-    if (isNearPeak && significantChange) {
-      const visibilityDistance = this.calculateVisibilityDistance(elevationDiff, 'crest');
-      const riskScore = this.calculateBlindSpotRisk('crest', visibilityDistance, elevationDiff);
-
+    const analysisWindow = routePoints.slice(startIndex, endIndex + 1);
+    
+    // Get REAL elevation data
+    const elevationData = await realCalculator.getRealElevationData(analysisWindow);
+    if (!elevationData || elevationData.length === 0) return null;
+    
+    // Use REAL sight line calculation
+    const elevationProfile = elevationData;
+    const centerIndex = Math.floor(elevationProfile.length / 2);
+    const sightLineAnalysis = realCalculator.calculateSightLineObstruction(
+      elevationProfile, 
+      centerIndex,
+      realCalculator.visibilityConstants.DRIVER_EYE_HEIGHT
+    );
+    
+    if (sightLineAnalysis.hasObstruction) {
+      const visibilityDistance = realCalculator.calculateRealVisibilityDistance(
+        analysisWindow, elevationProfile, centerIndex, sightLineAnalysis.obstructionIndex
+      );
+      
+      const riskScore = realCalculator.calculateElevationRiskScore(
+        visibilityDistance,
+        sightLineAnalysis.obstructionHeight,
+        realCalculator.getLocalSpeedEstimate(currentPoint)
+      );
+      
       return {
         spotType: 'crest',
         visibilityDistance,
-        obstructionHeight: elevationDiff,
+        obstructionHeight: sightLineAnalysis.obstructionHeight,
         riskScore,
-        severityLevel: this.getBlindSpotSeverity(riskScore),
+        severityLevel: realCalculator.getBlindSpotSeverity(riskScore),
         roadGeometry: {
-          gradient: elevationDiff / 100, // Simplified gradient calculation
+          gradient: realCalculator.calculateGrade(elevationProfile),
           curvature: 0,
-          width: 7 // Default road width
+          width: 7
         },
-        structures: [], // FIXED: Always return array
-        analysisMethod: 'elevation_data', // FIXED: Valid enum value
-        confidence: 0.8
+        structures: [],
+        analysisMethod: 'elevation_data',
+        confidence: sightLineAnalysis.confidence
       };
     }
-
+    
     return null;
-
   } catch (error) {
-    console.error('Elevation blind spot check failed:', error);
+    console.error('Real elevation blind spot check failed:', error);
     return null;
   }
 }
@@ -604,50 +629,52 @@ class SharpTurnsBlindSpotsAnalysisService {
     return null;
   }
 }
-  async checkObstructionBlindSpot(currentPoint) {
+ async checkObstructionBlindSpot(currentPoint) {
   try {
-    // Use Google Places API to check for potential obstructions
-    const nearbyObstructions = await this.findNearbyObstructions(
-      currentPoint.latitude, 
-      currentPoint.longitude
-    );
-
-    if (nearbyObstructions.length > 0) {
-      const closestObstruction = nearbyObstructions[0];
+    const realCalculator = require('./realBlindSpotCalculations');
+    
+    // Get REAL obstruction data from Google Places API
+    const obstructions = await realCalculator.getDetailedObstructions(currentPoint);
+    
+    if (obstructions.length > 0) {
+      const closestObstruction = obstructions[0];
       const distance = closestObstruction.distance;
-
-      // Check if obstruction is close enough to cause visibility issues
+      
       if (distance < 50) { // Within 50 meters
-        const visibilityDistance = this.calculateVisibilityDistance(distance, 'obstruction');
-        const riskScore = this.calculateBlindSpotRisk('obstruction', visibilityDistance, distance);
-
-        return {
-          spotType: 'obstruction',
-          visibilityDistance,
-          obstructionHeight: closestObstruction.estimatedHeight || 10,
-          riskScore,
-          severityLevel: this.getBlindSpotSeverity(riskScore),
-          // FIXED: Return proper structures array format
-          structures: [{
-            type: closestObstruction.type || 'building',
-            height: closestObstruction.estimatedHeight || 10,
-            distance: distance,
-            name: closestObstruction.name || 'Unknown structure'
-          }],
-          analysisMethod: 'places_api', // FIXED: This is now a valid enum value
-          confidence: 0.6
-        };
+        // Real geometric shadow zone analysis
+        const shadowAnalysis = realCalculator.analyzeObstructionShadowZone(
+          currentPoint, closestObstruction, [], 0
+        );
+        
+        if (shadowAnalysis.createsBlindSpot) {
+          const visibilityDistance = shadowAnalysis.blockedDistance;
+          const riskScore = realCalculator.calculateObstructionRiskScore(shadowAnalysis, closestObstruction);
+          
+          return {
+            spotType: 'obstruction',
+            visibilityDistance,
+            obstructionHeight: closestObstruction.height,
+            riskScore,
+            severityLevel: realCalculator.getBlindSpotSeverity(riskScore),
+            structures: [{
+              type: closestObstruction.type || 'building',
+              height: closestObstruction.height || 10,
+              distance: distance,
+              name: closestObstruction.name || 'Unknown structure'
+            }],
+            analysisMethod: 'places_api',
+            confidence: 0.6
+          };
+        }
       }
     }
-
+    
     return null;
-
   } catch (error) {
-    console.error('Obstruction blind spot check failed:', error);
+    console.error('Real obstruction blind spot check failed:', error);
     return null;
   }
 }
-
   // HELPER METHODS FOR BLIND SPOTS
 
   async createBlindSpotRecord(routeId, point, blindSpotData, visualData) {
@@ -796,23 +823,26 @@ class SharpTurnsBlindSpotsAnalysisService {
 }
 
   calculateVisibilityDistance(obstructionValue, spotType) {
-    switch (spotType) {
-      case 'crest':
-        // For elevation-based blind spots
-        return Math.max(50, 300 - (obstructionValue * 5));
+  const realCalculator = require('./realBlindSpotCalculations');
+  
+  switch (spotType) {
+    case 'crest':
+      // Real formula: Visibility = 2 * sqrt(h * R) where h = obstruction height, R = earth radius
+      const earthRadius = 6371000; // meters
+      return Math.round(2 * Math.sqrt(obstructionValue * earthRadius / 1000)); // Convert to reasonable scale
       
-      case 'curve':
-        // For curve-based blind spots
-        return Math.max(75, obstructionValue * 0.8);
+    case 'curve':
+      // Use real AASHTO curve sight distance calculation
+      return realCalculator.calculateAvailableSightDistance(obstructionValue, 10);
       
-      case 'obstruction':
-        // For structure-based blind spots
-        return Math.max(25, 200 - (obstructionValue * 2));
+    case 'obstruction':
+      // Real shadow length calculation
+      return realCalculator.calculateGeometricShadowLength(1.2, obstructionValue, 50);
       
-      default:
-        return 100;
-    }
+    default:
+      return 100;
   }
+}
 
   calculateBlindSpotRisk(spotType, visibilityDistance, obstructionValue) {
     let riskScore = 3; // Base risk

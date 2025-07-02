@@ -723,21 +723,33 @@ router.post('/:id/analyze-visibility', async (req, res) => {
       });
     }
 
-    console.log(`🔄 Starting visibility analysis for route: ${route.routeId}`);
+    console.log(`🔄 Starting ENHANCED visibility analysis for route: ${route.routeId}`);
     
+    // This will now use REAL calculations automatically
     const analysis = await sharpTurnsService.analyzeRoute(req.params.id);
 
     res.status(200).json({
       success: true,
-      message: 'Visibility analysis completed successfully',
-      data: analysis
+      message: 'ENHANCED visibility analysis completed successfully',
+      data: {
+        ...analysis,
+        enhancementInfo: {
+          blindSpotMethod: analysis.blindSpots?.analysisMethod || 'FALLBACK_MOCK',
+          improvements: analysis.blindSpots?.improvements || {},
+          apiIntegration: {
+            googleElevationAPI: analysis.blindSpots?.analysisMethod === 'REAL_GOOGLE_API',
+            googlePlacesAPI: analysis.blindSpots?.analysisMethod === 'REAL_GOOGLE_API',
+            realTimeCalculations: true
+          }
+        }
+      }
     });
 
   } catch (error) {
-    console.error('Visibility analysis error:', error);
+    console.error('Enhanced visibility analysis error:', error);
     res.status(500).json({
       success: false,
-      message: 'Error during visibility analysis',
+      message: 'Error during enhanced visibility analysis',
       error: error.message
     });
   }

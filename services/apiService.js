@@ -77,27 +77,66 @@ class ApiService {
 
   // Google Maps Elevation API - Get elevation data
   async getElevation(coordinates) {
-    try {
-      const locations = coordinates.map(coord => `${coord.latitude},${coord.longitude}`).join('|');
-      const url = `https://maps.googleapis.com/maps/api/elevation/json?locations=${locations}&key=${this.googleMapsApiKey}`;
-      
-      const response = await axios.get(url);
-      
-      if (response.data.status !== 'OK') {
-        throw new Error(`Google Elevation API error: ${response.data.status}`);
-      }
-
-      return response.data.results.map(result => ({
-        latitude: result.location.lat,
-        longitude: result.location.lng,
-        elevation: result.elevation
-      }));
-
-    } catch (error) {
-      logger.error('Google Elevation API error:', error);
-      throw new Error(`Failed to get elevation data: ${error.message}`);
+  try {
+    // Handle single coordinate
+    if (!Array.isArray(coordinates)) {
+      coordinates = [coordinates];
     }
+    
+    // Batch processing for large coordinate arrays
+    if (coordinates.length > 100) {
+      return await this.getElevationBatch(coordinates);
+    }
+    
+    const locations = coordinates.map(coord => `${coord.latitude},${coord.longitude}`).join('|');
+    const url = `https://maps.googleapis.com/maps/api/elevation/json?locations=${locations}&key=${this.googleMapsApiKey}`;
+    
+    const response = await axios.get(url);
+    
+    if (response.data.status !== 'OK') {
+      throw new Error(`Google Elevation API error: ${response.data.status}`);
+    }
+
+    return response.data.results.map(result => ({
+      latitude: result.location.lat,
+      longitude: result.location.lng,
+      elevation: result.elevation
+    }));
+
+  } catch (error) {
+    logger.error('Google Elevation API error:', error);
+    throw new Error(`Failed to get elevation data: ${error.message}`);
   }
+}
+
+// ✅ ADD new batch processing method:
+async getElevationBatch(coordinates, batchSize = 100) {
+  try {
+    const results = [];
+    
+    console.log(`📡 Processing ${coordinates.length} elevation points in batches of ${batchSize}`);
+    
+    for (let i = 0; i < coordinates.length; i += batchSize) {
+      const batch = coordinates.slice(i, i + batchSize);
+      const batchResults = await this.getElevation(batch);
+      results.push(...batchResults);
+      
+      console.log(`✅ Processed batch ${Math.floor(i/batchSize) + 1}/${Math.ceil(coordinates.length/batchSize)}`);
+      
+      // Rate limiting - respect Google API limits
+      if (i + batchSize < coordinates.length) {
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+    }
+    
+    console.log(`📊 Total elevation points processed: ${results.length}`);
+    return results;
+    
+  } catch (error) {
+    console.error('Batch elevation processing failed:', error);
+    throw error;
+  }
+}
 
   // Google Places API - Find nearby services
   async findNearbyPlaces(latitude, longitude, type, radius = 50000) {

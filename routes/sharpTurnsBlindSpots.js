@@ -515,67 +515,9 @@ router.get('/routes/:routeId/visibility-analysis', async (req, res) => {
       });
     }
 
-    // Get both sharp turns and blind spots
-    const [sharpTurns, blindSpots] = await Promise.all([
-      SharpTurn.find({ routeId }).sort({ distanceFromStartKm: 1 }),
-      BlindSpot.find({ routeId }).sort({ distanceFromStartKm: 1 })
-    ]);
-
-    // Calculate combined risk assessment
-    const combinedRiskPoints = [];
-    
-    // Add sharp turns as risk points
-    sharpTurns.forEach(turn => {
-      combinedRiskPoints.push({
-        type: 'sharp_turn',
-        id: turn._id,
-        coordinates: { latitude: turn.latitude, longitude: turn.longitude },
-        distanceFromStart: turn.distanceFromStartKm,
-        riskScore: turn.riskScore,
-        severity: turn.turnSeverity,
-        angle: turn.turnAngle,
-        direction: turn.turnDirection,
-        recommendedSpeed: turn.recommendedSpeed,
-        streetViewLink: turn.streetViewLink,
-        mapsLink: turn.mapsLink
-      });
-    });
-
-    // Add blind spots as risk points
-    blindSpots.forEach(spot => {
-      combinedRiskPoints.push({
-        type: 'blind_spot',
-        id: spot._id,
-        coordinates: { latitude: spot.latitude, longitude: spot.longitude },
-        distanceFromStart: spot.distanceFromStartKm,
-        riskScore: spot.riskScore,
-        severity: spot.severityLevel,
-        spotType: spot.spotType,
-        visibilityDistance: spot.visibilityDistance,
-        obstructionHeight: spot.obstructionHeight,
-        satelliteViewLink: spot.satelliteViewLink,
-        recommendations: spot.recommendations
-      });
-    });
-
-    // Sort combined points by distance
-    combinedRiskPoints.sort((a, b) => a.distanceFromStart - b.distanceFromStart);
-
-    // Calculate overall route visibility risk
-    const allRiskScores = combinedRiskPoints.map(point => point.riskScore);
-    const avgRiskScore = allRiskScores.length > 0 ? 
-      allRiskScores.reduce((sum, score) => sum + score, 0) / allRiskScores.length : 0;
-    const maxRiskScore = allRiskScores.length > 0 ? Math.max(...allRiskScores) : 0;
-    const criticalPoints = combinedRiskPoints.filter(point => point.riskScore >= 8).length;
-    const highRiskPoints = combinedRiskPoints.filter(point => point.riskScore >= 6 && point.riskScore < 8).length;
-
-    // Generate route-level recommendations
-    const routeRecommendations = this.generateRouteVisibilityRecommendations(
-      sharpTurns.length, 
-      blindSpots.length, 
-      avgRiskScore, 
-      criticalPoints
-    );
+    // Use enhanced analysis (will automatically use real calculations)
+    const sharpTurnsService = require('../services/sharpTurnsBlindSpotsService');
+    const analysis = await sharpTurnsService.analyzeRoute(routeId);
 
     res.status(200).json({
       success: true,
@@ -589,39 +531,61 @@ router.get('/routes/:routeId/visibility-analysis', async (req, res) => {
           terrain: route.terrain
         },
         overallAssessment: {
-          averageRiskScore: Math.round(avgRiskScore * 100) / 100,
-          maxRiskScore: maxRiskScore,
-          totalRiskPoints: combinedRiskPoints.length,
-          criticalPoints: criticalPoints,
-          highRiskPoints: highRiskPoints,
-          riskDensity: Math.round((combinedRiskPoints.length / route.totalDistance) * 100) / 100, // Points per km
-          overallRiskLevel: this.determineOverallRiskLevel(avgRiskScore, criticalPoints, combinedRiskPoints.length)
+          averageRiskScore: analysis.summary?.avgBlindSpotRisk || 0,
+          maxRiskScore: Math.max(
+            ...analysis.blindSpots?.spots?.map(s => s.riskScore) || [0]
+          ),
+          totalRiskPoints: analysis.summary?.totalSharpTurns + analysis.summary?.totalBlindSpots || 0,
+          criticalPoints: analysis.summary?.criticalTurns + analysis.summary?.criticalBlindSpots || 0,
+          overallRiskLevel: analysis.summary?.overallRiskLevel || 'LOW'
         },
         breakdown: {
           sharpTurns: {
-            total: sharpTurns.length,
-            critical: sharpTurns.filter(t => t.riskScore >= 8).length,
-            avgRiskScore: sharpTurns.length > 0 ? 
-              Math.round((sharpTurns.reduce((sum, t) => sum + t.riskScore, 0) / sharpTurns.length) * 100) / 100 : 0
+            total: analysis.summary?.totalSharpTurns || 0,
+            critical: analysis.summary?.criticalTurns || 0,
+            avgRiskScore: analysis.summary?.avgTurnRisk || 0
           },
           blindSpots: {
-            total: blindSpots.length,
-            critical: blindSpots.filter(s => s.riskScore >= 8).length,
-            avgRiskScore: blindSpots.length > 0 ? 
-              Math.round((blindSpots.reduce((sum, s) => sum + s.riskScore, 0) / blindSpots.length) * 100) / 100 : 0
+            total: analysis.summary?.totalBlindSpots || 0,
+            critical: analysis.summary?.criticalBlindSpots || 0,
+            avgRiskScore: analysis.summary?.avgBlindSpotRisk || 0,
+            analysisMethod: analysis.blindSpots?.analysisMethod || 'UNKNOWN'
           }
         },
-        riskPoints: combinedRiskPoints,
-        routeRecommendations: routeRecommendations,
-        analysisDate: new Date()
+        enhancementStatus: {
+          realCalculationsUsed: analysis.blindSpots?.analysisMethod === 'REAL_GOOGLE_API',
+          apiIntegrations: analysis.blindSpots?.improvements || {},
+          fallbackUsed: analysis.blindSpots?.analysisMethod === 'FALLBACK_MOCK'
+        },
+        riskPoints: [
+          // Combine sharp turns and blind spots
+          ...(analysis.sharpTurns?.turns || []).map(turn => ({
+            type: 'sharp_turn',
+            id: turn._id,
+            coordinates: { latitude: turn.latitude, longitude: turn.longitude },
+            distanceFromStart: turn.distanceFromStartKm,
+            riskScore: turn.riskScore,
+            details: turn
+          })),
+          ...(analysis.blindSpots?.spots || []).map(spot => ({
+            type: 'blind_spot',
+            id: spot._id,
+            coordinates: { latitude: spot.latitude, longitude: spot.longitude },
+            distanceFromStart: spot.distanceFromStartKm,
+            riskScore: spot.riskScore,
+            details: spot
+          }))
+        ].sort((a, b) => a.distanceFromStart - b.distanceFromStart),
+        routeRecommendations: analysis.recommendations || [],
+        analysisDate: analysis.analysisDate || new Date()
       }
     });
 
   } catch (error) {
-    console.error('Get visibility analysis error:', error);
+    console.error('Enhanced visibility analysis error:', error);
     res.status(500).json({
       success: false,
-      message: 'Error fetching visibility analysis',
+      message: 'Error fetching enhanced visibility analysis',
       error: error.message
     });
   }
