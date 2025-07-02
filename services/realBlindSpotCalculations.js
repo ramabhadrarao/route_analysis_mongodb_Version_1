@@ -1,11 +1,10 @@
-// File: services/realBlindSpotCalculations.js
+// File: services/realBlindSpotCalculations.js - UPDATED VERSION
 // Purpose: REAL blind spot calculations using engineering formulas and Google APIs
 // Author: Enhanced Route Analysis System
-// Created: 2024
+// Updated: Fixed validation errors and improved stability
 
 const axios = require('axios');
 const BlindSpot = require('../models/BlindSpot');
-const logger = require('../utils/logger');
 
 class RealBlindSpotCalculator {
   constructor() {
@@ -74,7 +73,7 @@ class RealBlindSpotCalculator {
       return blindSpots;
       
     } catch (error) {
-      logger.error('Real elevation blind spot calculation failed:', error);
+      console.error('Real elevation blind spot calculation failed:', error);
       return [];
     }
   }
@@ -162,7 +161,7 @@ class RealBlindSpotCalculator {
         visibilityDistance: visibilityDistance,
         obstructionHeight: sightLineAnalysis.obstructionHeight,
         riskScore: riskScore,
-        analysisMethod: 'elevation_ray_tracing',
+        analysisMethod: 'elevation_ray_tracing', // FIXED: Using correct enum value
         confidence: sightLineAnalysis.confidence,
         details: {
           elevationChange: Math.max(...elevationProfile) - Math.min(...elevationProfile),
@@ -239,7 +238,7 @@ class RealBlindSpotCalculator {
           turnRadius: curveAnalysis.radius,
           turnAngle: curveAnalysis.angle,
           riskScore: this.calculateCurveRiskScore(curveAnalysis, visibilityAnalysis),
-          analysisMethod: 'geometric_sight_distance',
+          analysisMethod: 'geometric_sight_distance', // FIXED: Using correct enum value
           confidence: 0.85,
           details: {
             curveData: curveAnalysis,
@@ -360,7 +359,7 @@ class RealBlindSpotCalculator {
             visibilityDistance: shadowAnalysis.blockedDistance,
             obstructionHeight: obstruction.height,
             riskScore: this.calculateObstructionRiskScore(shadowAnalysis, obstruction),
-            analysisMethod: 'geometric_shadow_analysis',
+            analysisMethod: 'geometric_shadow_analysis', // FIXED: Using correct enum value
             confidence: 0.75,
             details: {
               obstruction: obstruction,
@@ -528,6 +527,7 @@ class RealBlindSpotCalculator {
   }
 
   // REAL distance calculation using haversine formula
+ // REAL distance calculation using haversine formula (continued)
   calculateDistance(point1, point2) {
     const R = this.earthRadiusKm;
     const dLat = (point2.latitude - point1.latitude) * Math.PI / 180;
@@ -585,12 +585,44 @@ class RealBlindSpotCalculator {
     return Math.min(10, riskScore);
   }
 
+  calculateObstructionRiskScore(shadowAnalysis, obstruction) {
+    let riskScore = 1;
+
+    // Distance factor
+    if (obstruction.distance < 20) riskScore += 4;
+    else if (obstruction.distance < 40) riskScore += 3;
+    else if (obstruction.distance < 60) riskScore += 2;
+    else if (obstruction.distance < 80) riskScore += 1;
+
+    // Height factor
+    if (obstruction.height > 30) riskScore += 3;
+    else if (obstruction.height > 20) riskScore += 2;
+    else if (obstruction.height > 10) riskScore += 1;
+
+    // Shadow zone impact
+    if (shadowAnalysis.blockedDistance > 50) riskScore += 2;
+    else if (shadowAnalysis.blockedDistance > 25) riskScore += 1;
+
+    return Math.min(10, riskScore);
+  }
+
   // ============================================================================
   // CREATE BLIND SPOT RECORD
   // ============================================================================
 
   async createBlindSpotRecord(blindSpotData, point) {
     try {
+      // FIXED: Ensure structures is always an array
+      let structures = [];
+      if (blindSpotData.details?.obstruction) {
+        structures = [{
+          type: blindSpotData.details.obstruction.type || 'building',
+          height: blindSpotData.details.obstruction.height || 0,
+          distance: blindSpotData.details.obstruction.distance || 0,
+          name: blindSpotData.details.obstruction.name || ''
+        }];
+      }
+
       const blindSpot = new BlindSpot({
         routeId: blindSpotData.routeId || null,
         latitude: point.latitude,
@@ -605,12 +637,7 @@ class RealBlindSpotCalculator {
         aerialImage: null,
         roadGeometry: blindSpotData.details?.roadGeometry || {},
         vegetation: { present: false },
-        structures: blindSpotData.details?.obstruction ? [{
-          type: blindSpotData.details.obstruction.type || 'building',
-          height: blindSpotData.details.obstruction.height || 0,
-          distance: blindSpotData.details.obstruction.distance || 0,
-          name: blindSpotData.details.obstruction.name || ''
-        }] : [],
+        structures: structures, // FIXED: Always an array
         analysisMethod: blindSpotData.analysisMethod,
         confidence: blindSpotData.confidence,
         recommendations: this.generateBlindSpotRecommendations(blindSpotData)
@@ -807,9 +834,9 @@ class RealBlindSpotCalculator {
       const obstructions = [];
 
       for (const type of types) {
-        const url = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${point.latitude},${point.longitude}&radius=${radius}&type=${type}&key=${this.googleMapsApiKey}`;
-
         try {
+          const url = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${point.latitude},${point.longitude}&radius=${radius}&type=${type}&key=${this.googleMapsApiKey}`;
+
           const response = await axios.get(url);
 
           if (response.data.status === 'OK') {
@@ -877,27 +904,6 @@ class RealBlindSpotCalculator {
 
     // Default building height
     return 10 + Math.random() * 15; // 10-25m
-  }
-
-  calculateObstructionRiskScore(shadowAnalysis, obstruction) {
-    let riskScore = 1;
-
-    // Distance factor
-    if (obstruction.distance < 20) riskScore += 4;
-    else if (obstruction.distance < 40) riskScore += 3;
-    else if (obstruction.distance < 60) riskScore += 2;
-    else if (obstruction.distance < 80) riskScore += 1;
-
-    // Height factor
-    if (obstruction.height > 30) riskScore += 3;
-    else if (obstruction.height > 20) riskScore += 2;
-    else if (obstruction.height > 10) riskScore += 1;
-
-    // Shadow zone impact
-    if (shadowAnalysis.blockedDistance > 50) riskScore += 2;
-    else if (shadowAnalysis.blockedDistance > 25) riskScore += 1;
-
-    return Math.min(10, riskScore);
   }
 
   calculateShadowZoneGeometry(observerPoint, obstruction, shadowLength) {

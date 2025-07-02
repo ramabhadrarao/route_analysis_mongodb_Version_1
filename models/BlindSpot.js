@@ -130,7 +130,10 @@ const blindSpotSchema = new mongoose.Schema({
       'gps_data',
       'elevation_ray_tracing',           // ADDED: For real elevation analysis
       'geometric_sight_distance',        // ADDED: For curve analysis
-      'geometric_shadow_analysis'        // ADDED: For obstruction analysis
+      'geometric_shadow_analysis',       // ADDED: For obstruction analysis
+      'real_calculations',               // ADDED: For comprehensive real analysis
+      'google_elevation_api',            // ADDED: For Google API integration
+      'aashto_standards'                 // ADDED: For engineering standards
     ],
     default: 'elevation_data'
   },
