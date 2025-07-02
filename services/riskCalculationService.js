@@ -219,6 +219,210 @@ class EnhancedRiskCalculationService {
       return 3;
     }
   }
+// sharp turns and blind spots risk calculation
+// ENHANCED SHARP TURNS RISK CALCULATION (continuation)
+async calculateEnhancedSharpTurnsRisk(routeId) {
+  try {
+    const SharpTurn = require('../models/SharpTurn');
+    const sharpTurns = await SharpTurn.find({ routeId });
+    
+    if (sharpTurns.length === 0) return 3; // Low base risk
+    
+    let totalRisk = 0;
+    let weightedPoints = 0;
+    
+    for (const turn of sharpTurns) {
+      let turnRisk = turn.riskScore || 5;
+      let weight = 1;
+      
+      // Enhanced risk factors
+      const riskFactors = {
+        angle: {
+          hairpin: turn.turnAngle > 120 ? 3 : 0,
+          sharp: turn.turnAngle > 90 ? 2 : 0,
+          moderate: turn.turnAngle > 60 ? 1 : 0
+        },
+        radius: {
+          veryTight: turn.turnRadius < 50 ? 3 : 0,
+          tight: turn.turnRadius < 100 ? 2 : 0,
+          moderate: turn.turnRadius < 200 ? 1 : 0
+        },
+        safety: {
+          noGuardrails: !turn.guardrails ? 2 : 0,
+          noWarningSigns: !turn.warningSigns ? 1 : 0,
+          poorVisibility: turn.visibility === 'poor' ? 2 : 0,
+          poorSurface: turn.roadSurface === 'poor' ? 1 : 0
+        },
+        environment: {
+          banking: turn.bankingAngle && turn.bankingAngle < -5 ? 2 : 0, // Adverse banking
+          noLighting: !turn.lightingAvailable ? 1 : 0
+        }
+      };
+      
+      // Apply enhanced factors
+      turnRisk += Math.max(riskFactors.angle.hairpin, riskFactors.angle.sharp, riskFactors.angle.moderate);
+      turnRisk += Math.max(riskFactors.radius.veryTight, riskFactors.radius.tight, riskFactors.radius.moderate);
+      turnRisk += riskFactors.safety.noGuardrails + riskFactors.safety.noWarningSigns;
+      turnRisk += riskFactors.safety.poorVisibility + riskFactors.safety.poorSurface;
+      turnRisk += riskFactors.environment.banking + riskFactors.environment.noLighting;
+      
+      // Weight by severity
+      if (turn.turnSeverity === 'hairpin') weight = 2;
+      else if (turn.turnSeverity === 'sharp') weight = 1.5;
+      
+      totalRisk += Math.max(1, Math.min(10, turnRisk)) * weight;
+      weightedPoints += weight;
+    }
+    
+    const avgRisk = weightedPoints > 0 ? totalRisk / weightedPoints : 3;
+    
+    return {
+      riskScore: Math.round(avgRisk * 100) / 100,
+      breakdown: {
+        totalTurns: sharpTurns.length,
+        avgAngle: sharpTurns.reduce((sum, t) => sum + t.turnAngle, 0) / sharpTurns.length,
+        criticalTurns: sharpTurns.filter(t => t.riskScore >= 8).length,
+        hairpinTurns: sharpTurns.filter(t => t.turnSeverity === 'hairpin').length,
+        unsafeFeatures: sharpTurns.filter(t => !t.guardrails || !t.warningSigns).length
+      },
+      recommendations: this.generateSharpTurnRecommendations(sharpTurns)
+    };
+    
+  } catch (error) {
+    console.error('Enhanced sharp turns risk calculation failed:', error);
+    return 3;
+  }
+}
+
+// ENHANCED BLIND SPOTS RISK CALCULATION  
+async calculateEnhancedBlindSpotsRisk(routeId) {
+  try {
+    const BlindSpot = require('../models/BlindSpot');
+    const blindSpots = await BlindSpot.find({ routeId });
+    
+    if (blindSpots.length === 0) return 2; // Very low base risk
+    
+    let totalRisk = 0;
+    let weightedPoints = 0;
+    
+    for (const spot of blindSpots) {
+      let spotRisk = spot.riskScore || 5;
+      let weight = 1;
+      
+      // Enhanced risk factors
+      const riskFactors = {
+        visibility: {
+          veryPoor: spot.visibilityDistance < 50 ? 4 : 0,
+          poor: spot.visibilityDistance < 100 ? 3 : 0,
+          limited: spot.visibilityDistance < 200 ? 2 : 0
+        },
+        spotType: {
+          crest: spot.spotType === 'crest' ? 2 : 0,
+          curve: spot.spotType === 'curve' ? 1 : 0,
+          obstruction: spot.spotType === 'obstruction' ? 3 : 0
+        },
+        safety: {
+          noWarnings: !spot.warningSignsPresent ? 2 : 0,
+          noMirror: !spot.mirrorInstalled ? 1 : 0,
+          highSpeed: (spot.speedLimit || 60) > 60 ? 1 : 0
+        },
+        environment: {
+          vegetation: spot.vegetation?.density === 'heavy' ? 2 : 0,
+          structures: (spot.structures || []).length > 0 ? 1 : 0,
+          elevation: spot.obstructionHeight > 10 ? 1 : 0
+        }
+      };
+      
+      // Apply enhanced factors
+      spotRisk += Math.max(riskFactors.visibility.veryPoor, riskFactors.visibility.poor, riskFactors.visibility.limited);
+      spotRisk += Math.max(riskFactors.spotType.crest, riskFactors.spotType.curve, riskFactors.spotType.obstruction);
+      spotRisk += riskFactors.safety.noWarnings + riskFactors.safety.noMirror + riskFactors.safety.highSpeed;
+      spotRisk += riskFactors.environment.vegetation + riskFactors.environment.structures + riskFactors.environment.elevation;
+      
+      // Weight by severity
+      if (spot.severityLevel === 'critical') weight = 2;
+      else if (spot.severityLevel === 'significant') weight = 1.5;
+      
+      totalRisk += Math.max(1, Math.min(10, spotRisk)) * weight;
+      weightedPoints += weight;
+    }
+    
+    const avgRisk = weightedPoints > 0 ? totalRisk / weightedPoints : 2;
+    
+    return {
+      riskScore: Math.round(avgRisk * 100) / 100,
+      breakdown: {
+        totalSpots: blindSpots.length,
+        avgVisibility: blindSpots.reduce((sum, s) => sum + s.visibilityDistance, 0) / blindSpots.length,
+        criticalSpots: blindSpots.filter(s => s.riskScore >= 8).length,
+        typeBreakdown: {
+          crest: blindSpots.filter(s => s.spotType === 'crest').length,
+          curve: blindSpots.filter(s => s.spotType === 'curve').length,
+          obstruction: blindSpots.filter(s => s.spotType === 'obstruction').length
+        },
+        poorVisibility: blindSpots.filter(s => s.visibilityDistance < 100).length
+      },
+      recommendations: this.generateBlindSpotRecommendations(blindSpots)
+    };
+    
+  } catch (error) {
+    console.error('Enhanced blind spots risk calculation failed:', error);
+    return 2;
+  }
+}
+
+// Helper methods for recommendations
+generateSharpTurnRecommendations(sharpTurns) {
+  const recommendations = [];
+  
+  const criticalTurns = sharpTurns.filter(t => t.riskScore >= 8);
+  const hairpinTurns = sharpTurns.filter(t => t.turnSeverity === 'hairpin');
+  const unsafeTurns = sharpTurns.filter(t => !t.guardrails || !t.warningSigns);
+  
+  if (criticalTurns.length > 0) {
+    recommendations.push(`${criticalTurns.length} critical sharp turns require extreme caution`);
+  }
+  
+  if (hairpinTurns.length > 0) {
+    recommendations.push(`${hairpinTurns.length} hairpin turns - reduce speed to 15-20 km/h`);
+  }
+  
+  if (unsafeTurns.length > 0) {
+    recommendations.push(`${unsafeTurns.length} turns lack proper safety features - exercise extra caution`);
+  }
+  
+  if (sharpTurns.length > 10) {
+    recommendations.push('High density of sharp turns - consider convoy travel');
+  }
+  
+  return recommendations;
+}
+
+generateBlindSpotRecommendations(blindSpots) {
+  const recommendations = [];
+  
+  const criticalSpots = blindSpots.filter(s => s.riskScore >= 8);
+  const poorVisibility = blindSpots.filter(s => s.visibilityDistance < 100);
+  const crestSpots = blindSpots.filter(s => s.spotType === 'crest');
+  
+  if (criticalSpots.length > 0) {
+    recommendations.push(`${criticalSpots.length} critical blind spots - use horn when approaching`);
+  }
+  
+  if (poorVisibility.length > 0) {
+    recommendations.push(`${poorVisibility.length} areas with visibility < 100m - reduce speed significantly`);
+  }
+  
+  if (crestSpots.length > 0) {
+    recommendations.push(`${crestSpots.length} hill crests with limited visibility - stay in lane`);
+  }
+  
+  if (blindSpots.length > 5) {
+    recommendations.push('Multiple blind spots - maintain constant vigilance');
+  }
+  
+  return recommendations;
+}
 
   // 3. ENHANCED TRAFFIC DENSITY RISK
   async calculateEnhancedTrafficDensityRisk(routeId) {

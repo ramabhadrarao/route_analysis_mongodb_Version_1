@@ -59,6 +59,13 @@ try {
   console.error('❌ Error loading dashboard routes:', error.message);
 }
 
+try {
+  const sharpTurnsRoutes = require('./routes/sharpTurnsBlindSpots');
+  app.use('/api/visibility', sharpTurnsRoutes);
+  console.log('✅ Sharp turns & blind spots routes loaded');
+} catch (error) {
+  console.error('❌ Error loading sharp turns routes:', error.message);
+}
 // Health check endpoint
 app.get('/health', (req, res) => {
   res.status(200).json({

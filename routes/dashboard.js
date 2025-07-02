@@ -5,6 +5,7 @@ const express = require('express');
 const Route = require('../models/Route');
 const { auth } = require('../middleware/auth'); // FIXED: Added destructuring
 const mongoose = require('mongoose');
+const dashboardController = require('../controllers/dashboardController');
 
 const router = express.Router();
 
@@ -246,5 +247,98 @@ router.get('/alerts', async (req, res) => {
     });
   }
 });
+// Visibility analysis for dashboard
+router.get('/visibility-analysis', dashboardController.getVisibilityAnalysis);
+
+// Route safety summary
+router.get('/route-safety-summary', async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const SharpTurn = require('../models/SharpTurn');
+    const BlindSpot = require('../models/BlindSpot');
+    
+    // Get routes with safety data
+    const routes = await Route.find({
+      userId,
+      status: { $ne: 'deleted' }
+    }).select('routeId routeName totalDistance riskLevel');
+    
+    const routeSafetySummary = [];
+    
+    for (const route of routes) {
+      const [turns, spots] = await Promise.all([
+        SharpTurn.countDocuments({ routeId: route._id }),
+        BlindSpot.countDocuments({ routeId: route._id })
+      ]);
+      
+      const [criticalTurns, criticalSpots] = await Promise.all([
+        SharpTurn.countDocuments({ routeId: route._id, riskScore: { $gte: 8 }}),
+        BlindSpot.countDocuments({ routeId: route._id, riskScore: { $gte: 8 }})
+      ]);
+      
+      const safetyScore = this.calculateRouteSafetyScore(turns, spots, criticalTurns, criticalSpots, route.totalDistance);
+      
+      routeSafetySummary.push({
+        routeId: route.routeId,
+        routeName: route.routeName,
+        distance: route.totalDistance,
+        riskLevel: route.riskLevel,
+        sharpTurns: turns,
+        blindSpots: spots,
+        criticalPoints: criticalTurns + criticalSpots,
+        safetyScore: safetyScore,
+        safetyGrade: this.getSafetyGrade(safetyScore),
+        needsAttention: criticalTurns > 0 || criticalSpots > 0
+      });
+    }
+    
+    // Sort by safety score (lower is better)
+    routeSafetySummary.sort((a, b) => a.safetyScore - b.safetyScore);
+    
+    res.status(200).json({
+      success: true,
+      data: {
+        totalRoutes: routes.length,
+        routesNeedingAttention: routeSafetySummary.filter(r => r.needsAttention).length,
+        averageSafetyScore: routeSafetySummary.reduce((sum, r) => sum + r.safetyScore, 0) / routeSafetySummary.length,
+        routes: routeSafetySummary
+      }
+    });
+    
+  } catch (error) {
+    console.error('Route safety summary error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching route safety summary'
+    });
+  }
+});
+
+// Helper methods for safety calculations
+function calculateRouteSafetyScore(turns, spots, criticalTurns, criticalSpots, distance) {
+  let score = 100; // Start with perfect score
+  
+  // Deduct points for visibility issues
+  score -= (turns * 2); // 2 points per sharp turn
+  score -= (spots * 3); // 3 points per blind spot
+  score -= (criticalTurns * 10); // 10 points per critical turn
+  score -= (criticalSpots * 15); // 15 points per critical blind spot
+  
+  // Factor in density (issues per km)
+  if (distance > 0) {
+    const density = (turns + spots) / distance;
+    if (density > 1) score -= (density - 1) * 10; // Penalty for high density
+  }
+  
+  return Math.max(0, Math.min(100, Math.round(score)));
+}
+
+function getSafetyGrade(score) {
+  if (score >= 90) return 'A';
+  if (score >= 80) return 'B';
+  if (score >= 70) return 'C';
+  if (score >= 60) return 'D';
+  return 'F';
+}
 
 module.exports = router;

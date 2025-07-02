@@ -9,7 +9,9 @@ const WeatherCondition = require('../models/WeatherCondition');
 const TrafficData = require('../models/TrafficData');
 const EmergencyService = require('../models/EmergencyService');
 const logger = require('../utils/logger');
-
+// ADD THESE NEW IMPORTS:
+const SharpTurn = require('../models/SharpTurn');
+const BlindSpot = require('../models/BlindSpot');
 // Get dashboard overview
 exports.getDashboardOverview = async (req, res) => {
   try {
@@ -457,5 +459,146 @@ exports.generateRecommendations = (route) => {
   
   return recommendations;
 };
+// Get visibility analysis for dashboard
+exports.getVisibilityAnalysis = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const SharpTurn = require('../models/SharpTurn');
+    const BlindSpot = require('../models/BlindSpot');
+    
+    // Get all routes for the user
+    const userRoutes = await Route.find({
+      userId,
+      status: { $ne: 'deleted' }
+    }).select('_id routeId routeName totalDistance');
+    
+    const routeIds = userRoutes.map(r => r._id);
+    
+    // Get sharp turns and blind spots data
+    const [sharpTurns, blindSpots] = await Promise.all([
+      SharpTurn.find({ routeId: { $in: routeIds }}),
+      BlindSpot.find({ routeId: { $in: routeIds }})
+    ]);
+    
+    // Calculate overall statistics
+    const totalSharpTurns = sharpTurns.length;
+    const totalBlindSpots = blindSpots.length;
+    const criticalTurns = sharpTurns.filter(t => t.riskScore >= 8).length;
+    const criticalSpots = blindSpots.filter(s => s.riskScore >= 8).length;
+    
+    const avgTurnRisk = totalSharpTurns > 0 ? 
+      sharpTurns.reduce((sum, t) => sum + t.riskScore, 0) / totalSharpTurns : 0;
+    const avgSpotRisk = totalBlindSpots > 0 ? 
+      blindSpots.reduce((sum, s) => sum + s.riskScore, 0) / totalBlindSpots : 0;
+    
+    // Get route-wise breakdown
+    const routeAnalysis = userRoutes.map(route => {
+      const routeTurns = sharpTurns.filter(t => t.routeId.toString() === route._id.toString());
+      const routeSpots = blindSpots.filter(s => s.routeId.toString() === route._id.toString());
+      
+      return {
+        routeId: route.routeId,
+        routeName: route.routeName,
+        distance: route.totalDistance,
+        sharpTurns: routeTurns.length,
+        blindSpots: routeSpots.length,
+        criticalTurns: routeTurns.filter(t => t.riskScore >= 8).length,
+        criticalSpots: routeSpots.filter(s => s.riskScore >= 8).length,
+        turnDensity: route.totalDistance > 0 ? 
+          Math.round((routeTurns.length / route.totalDistance) * 100) / 100 : 0,
+        spotDensity: route.totalDistance > 0 ? 
+          Math.round((routeSpots.length / route.totalDistance) * 100) / 100 : 0
+      };
+    });
+    
+    // Identify most dangerous routes
+    const dangerousRoutes = routeAnalysis
+      .filter(r => r.criticalTurns > 0 || r.criticalSpots > 0)
+      .sort((a, b) => (b.criticalTurns + b.criticalSpots) - (a.criticalTurns + a.criticalSpots))
+      .slice(0, 5);
+    
+    res.status(200).json({
+      success: true,
+      data: {
+        summary: {
+          totalRoutes: userRoutes.length,
+          totalSharpTurns,
+          totalBlindSpots,
+          criticalTurns,
+          criticalSpots,
+          avgTurnRisk: Math.round(avgTurnRisk * 100) / 100,
+          avgSpotRisk: Math.round(avgSpotRisk * 100) / 100,
+          totalCriticalPoints: criticalTurns + criticalSpots
+        },
+        breakdown: {
+          turnSeverity: {
+            hairpin: sharpTurns.filter(t => t.turnSeverity === 'hairpin').length,
+            sharp: sharpTurns.filter(t => t.turnSeverity === 'sharp').length,
+            moderate: sharpTurns.filter(t => t.turnSeverity === 'moderate').length,
+            gentle: sharpTurns.filter(t => t.turnSeverity === 'gentle').length
+          },
+          spotTypes: {
+            crest: blindSpots.filter(s => s.spotType === 'crest').length,
+            curve: blindSpots.filter(s => s.spotType === 'curve').length,
+            obstruction: blindSpots.filter(s => s.spotType === 'obstruction').length,
+            other: blindSpots.filter(s => !['crest', 'curve', 'obstruction'].includes(s.spotType)).length
+          }
+        },
+        dangerousRoutes,
+        routeAnalysis: routeAnalysis.slice(0, 10), // Top 10 routes
+        recommendations: this.generateDashboardVisibilityRecommendations(
+          totalSharpTurns, totalBlindSpots, criticalTurns, criticalSpots
+        )
+      }
+    });
+    
+  } catch (error) {
+    console.error('Visibility analysis error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching visibility analysis'
+    });
+  }
+};
 
+// Helper method for dashboard recommendations
+exports.generateDashboardVisibilityRecommendations = function(totalTurns, totalSpots, criticalTurns, criticalSpots) {
+  const recommendations = [];
+  
+  if (criticalTurns > 0 || criticalSpots > 0) {
+    recommendations.push({
+      priority: 'critical',
+      category: 'immediate_action',
+      message: `${criticalTurns + criticalSpots} critical visibility points require immediate attention`,
+      action: 'Review and plan alternative routes for high-risk segments'
+    });
+  }
+  
+  if (totalTurns > 50) {
+    recommendations.push({
+      priority: 'high',
+      category: 'training',
+      message: `${totalTurns} sharp turns across all routes`,
+      action: 'Conduct specialized driver training for sharp turn navigation'
+    });
+  }
+  
+  if (totalSpots > 20) {
+    recommendations.push({
+      priority: 'high',
+      category: 'equipment',
+      message: `${totalSpots} blind spots identified`,
+      action: 'Equip vehicles with enhanced signaling and communication devices'
+    });
+  }
+  
+  recommendations.push({
+    priority: 'medium',
+    category: 'monitoring',
+    message: 'Regular visibility analysis recommended',
+    action: 'Schedule monthly route safety reviews'
+  });
+  
+  return recommendations;
+};
 module.exports = exports;

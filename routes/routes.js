@@ -704,5 +704,146 @@ router.post('/bulk/recalculate', async (req, res) => {
     });
   }
 });
+// Analyze sharp turns and blind spots for a route
+router.post('/:id/analyze-visibility', async (req, res) => {
+  try {
+    const Route = require('../models/Route');
+    const sharpTurnsService = require('../services/sharpTurnsBlindSpotsService');
+    
+    const route = await Route.findOne({
+      _id: req.params.id,
+      userId: req.user.id,
+      status: { $ne: 'deleted' }
+    });
+
+    if (!route) {
+      return res.status(404).json({
+        success: false,
+        message: 'Route not found'
+      });
+    }
+
+    console.log(`🔄 Starting visibility analysis for route: ${route.routeId}`);
+    
+    const analysis = await sharpTurnsService.analyzeRoute(req.params.id);
+
+    res.status(200).json({
+      success: true,
+      message: 'Visibility analysis completed successfully',
+      data: analysis
+    });
+
+  } catch (error) {
+    console.error('Visibility analysis error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error during visibility analysis',
+      error: error.message
+    });
+  }
+});
+
+// Get sharp turns data for a route
+router.get('/:id/sharp-turns', async (req, res) => {
+  try {
+    const SharpTurn = require('../models/SharpTurn');
+    const Route = require('../models/Route');
+    
+    const route = await Route.findOne({
+      _id: req.params.id,
+      userId: req.user.id,
+      status: { $ne: 'deleted' }
+    });
+
+    if (!route) {
+      return res.status(404).json({
+        success: false,
+        message: 'Route not found'
+      });
+    }
+
+    const sharpTurns = await SharpTurn.find({ routeId: req.params.id })
+      .sort({ distanceFromStartKm: 1 });
+
+    res.status(200).json({
+      success: true,
+      data: {
+        routeId: route.routeId,
+        routeName: route.routeName,
+        totalSharpTurns: sharpTurns.length,
+        criticalTurns: sharpTurns.filter(t => t.riskScore >= 8).length,
+        sharpTurns: sharpTurns.map(turn => ({
+          id: turn._id,
+          coordinates: { latitude: turn.latitude, longitude: turn.longitude },
+          distanceFromStart: turn.distanceFromStartKm,
+          turnAngle: turn.turnAngle,
+          turnDirection: turn.turnDirection,
+          riskScore: turn.riskScore,
+          severity: turn.turnSeverity,
+          recommendedSpeed: turn.recommendedSpeed,
+          streetViewLink: turn.streetViewLink,
+          mapsLink: turn.mapsLink
+        }))
+      }
+    });
+
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching sharp turns data'
+    });
+  }
+});
+
+// Get blind spots data for a route
+router.get('/:id/blind-spots', async (req, res) => {
+  try {
+    const BlindSpot = require('../models/BlindSpot');
+    const Route = require('../models/Route');
+    
+    const route = await Route.findOne({
+      _id: req.params.id,
+      userId: req.user.id,
+      status: { $ne: 'deleted' }
+    });
+
+    if (!route) {
+      return res.status(404).json({
+        success: false,
+        message: 'Route not found'
+      });
+    }
+
+    const blindSpots = await BlindSpot.find({ routeId: req.params.id })
+      .sort({ distanceFromStartKm: 1 });
+
+    res.status(200).json({
+      success: true,
+      data: {
+        routeId: route.routeId,
+        routeName: route.routeName,
+        totalBlindSpots: blindSpots.length,
+        criticalSpots: blindSpots.filter(s => s.riskScore >= 8).length,
+        blindSpots: blindSpots.map(spot => ({
+          id: spot._id,
+          coordinates: { latitude: spot.latitude, longitude: spot.longitude },
+          distanceFromStart: spot.distanceFromStartKm,
+          spotType: spot.spotType,
+          visibilityDistance: spot.visibilityDistance,
+          riskScore: spot.riskScore,
+          severity: spot.severityLevel,
+          satelliteViewLink: spot.satelliteViewLink,
+          recommendations: spot.recommendations
+        }))
+      }
+    });
+
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching blind spots data'
+    });
+  }
+});
 
 module.exports = router;
