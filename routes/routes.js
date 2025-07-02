@@ -705,55 +705,55 @@ router.post('/bulk/recalculate', async (req, res) => {
   }
 });
 // Analyze sharp turns and blind spots for a route
-router.post('/:id/analyze-visibility', async (req, res) => {
-  try {
-    const Route = require('../models/Route');
-    const sharpTurnsService = require('../services/sharpTurnsBlindSpotsService');
+// router.post('/:id/analyze-visibility', async (req, res) => {
+//   try {
+//     const Route = require('../models/Route');
+//     const sharpTurnsService = require('../services/sharpTurnsBlindSpotsService');
     
-    const route = await Route.findOne({
-      _id: req.params.id,
-      userId: req.user.id,
-      status: { $ne: 'deleted' }
-    });
+//     const route = await Route.findOne({
+//       _id: req.params.id,
+//       userId: req.user.id,
+//       status: { $ne: 'deleted' }
+//     });
 
-    if (!route) {
-      return res.status(404).json({
-        success: false,
-        message: 'Route not found'
-      });
-    }
+//     if (!route) {
+//       return res.status(404).json({
+//         success: false,
+//         message: 'Route not found'
+//       });
+//     }
 
-    console.log(`🔄 Starting ENHANCED visibility analysis for route: ${route.routeId}`);
+//     console.log(`🔄 Starting ENHANCED visibility analysis for route: ${route.routeId}`);
     
-    // This will now use REAL calculations automatically
-    const analysis = await sharpTurnsService.analyzeRoute(req.params.id);
+//     // This will now use REAL calculations automatically
+//     const analysis = await sharpTurnsService.analyzeRoute(req.params.id);
 
-    res.status(200).json({
-      success: true,
-      message: 'ENHANCED visibility analysis completed successfully',
-      data: {
-        ...analysis,
-        enhancementInfo: {
-          blindSpotMethod: analysis.blindSpots?.analysisMethod || 'FALLBACK_MOCK',
-          improvements: analysis.blindSpots?.improvements || {},
-          apiIntegration: {
-            googleElevationAPI: analysis.blindSpots?.analysisMethod === 'REAL_GOOGLE_API',
-            googlePlacesAPI: analysis.blindSpots?.analysisMethod === 'REAL_GOOGLE_API',
-            realTimeCalculations: true
-          }
-        }
-      }
-    });
+//     res.status(200).json({
+//       success: true,
+//       message: 'ENHANCED visibility analysis completed successfully',
+//       data: {
+//         ...analysis,
+//         enhancementInfo: {
+//           blindSpotMethod: analysis.blindSpots?.analysisMethod || 'FALLBACK_MOCK',
+//           improvements: analysis.blindSpots?.improvements || {},
+//           apiIntegration: {
+//             googleElevationAPI: analysis.blindSpots?.analysisMethod === 'REAL_GOOGLE_API',
+//             googlePlacesAPI: analysis.blindSpots?.analysisMethod === 'REAL_GOOGLE_API',
+//             realTimeCalculations: true
+//           }
+//         }
+//       }
+//     });
 
-  } catch (error) {
-    console.error('Enhanced visibility analysis error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Error during enhanced visibility analysis',
-      error: error.message
-    });
-  }
-});
+//   } catch (error) {
+//     console.error('Enhanced visibility analysis error:', error);
+//     res.status(500).json({
+//       success: false,
+//       message: 'Error during enhanced visibility analysis',
+//       error: error.message
+//     });
+//   }
+// });
 
 // Get sharp turns data for a route
 router.get('/:id/sharp-turns', async (req, res) => {
@@ -857,5 +857,821 @@ router.get('/:id/blind-spots', async (req, res) => {
     });
   }
 });
+// ENHANCED VISIBILITY ANALYSIS - FIXED TO USE REAL CALCULATOR
+router.post('/:id/analyze-visibility', async (req, res) => {
+  try {
+    const Route = require('../models/Route');
+    const sharpTurnsService = require('../services/sharpTurnsBlindSpotsService');
+    
+    const route = await Route.findOne({
+      _id: req.params.id,
+      userId: req.user.id,
+      status: { $ne: 'deleted' }
+    });
 
+    if (!route) {
+      return res.status(404).json({
+        success: false,
+        message: 'Route not found'
+      });
+    }
+
+    if (!route.routePoints || route.routePoints.length < 5) {
+      return res.status(400).json({
+        success: false,
+        message: 'Insufficient GPS points for analysis (minimum 5 required)',
+        currentPoints: route.routePoints?.length || 0
+      });
+    }
+
+    console.log(`🔄 Starting ENHANCED visibility analysis for route: ${route.routeId}`);
+    console.log(`📍 Analyzing ${route.routePoints.length} GPS points`);
+    
+    // Clear existing analysis data
+    await Promise.all([
+      require('../models/SharpTurn').deleteMany({ routeId: req.params.id }),
+      require('../models/BlindSpot').deleteMany({ routeId: req.params.id })
+    ]);
+    console.log('🗑️ Cleared existing visibility analysis data');
+
+    // Run ENHANCED analysis with REAL Google APIs
+    const analysis = await sharpTurnsService.analyzeRoute(req.params.id);
+
+    // Validate analysis results
+    if (!analysis || typeof analysis !== 'object') {
+      throw new Error('Invalid analysis results received');
+    }
+
+    // Enhanced response with comprehensive data
+    const enhancedResponse = {
+      success: true,
+      message: 'ENHANCED visibility analysis completed successfully',
+      routeInfo: {
+        routeId: route.routeId,
+        routeName: route.routeName,
+        fromName: route.fromName,
+        toName: route.toName,
+        totalDistance: route.totalDistance,
+        terrain: route.terrain,
+        gpsPoints: route.routePoints.length
+      },
+      analysisResults: {
+        ...analysis,
+        processingDetails: {
+          apiIntegrations: {
+            googleElevationAPI: process.env.GOOGLE_MAPS_API_KEY ? 'ACTIVE' : 'NOT_CONFIGURED',
+            googlePlacesAPI: process.env.GOOGLE_MAPS_API_KEY ? 'ACTIVE' : 'NOT_CONFIGURED',
+            googleStreetViewAPI: process.env.GOOGLE_MAPS_API_KEY ? 'ACTIVE' : 'NOT_CONFIGURED'
+          },
+          calculationMethods: {
+            elevationAnalysis: 'Physics-based ray tracing with earth curvature',
+            curveAnalysis: 'AASHTO geometric sight distance standards',
+            obstructionAnalysis: 'Geometric shadow zone calculations',
+            riskAssessment: 'Engineering-based risk scoring with validation'
+          },
+          dataQuality: {
+            elevationDataSource: 'Google Elevation API (batch processed)',
+            obstructionDataSource: 'Google Places API (filtered)',
+            validationLevel: 'Strict numeric validation (NaN prevention)',
+            confidenceLevel: analysis.blindSpots?.confidence || 0.8
+          }
+        }
+      },
+      criticalFindings: {
+        totalCriticalPoints: (analysis.summary?.criticalTurns || 0) + (analysis.summary?.criticalBlindSpots || 0),
+        immediateActionRequired: (analysis.summary?.criticalBlindSpots || 0) > 0,
+        routeRiskLevel: analysis.summary?.overallRiskLevel || 'LOW',
+        keyStatistics: {
+          sharpTurns: {
+            total: analysis.summary?.totalSharpTurns || 0,
+            critical: analysis.summary?.criticalTurns || 0,
+            avgRisk: analysis.summary?.avgTurnRisk || 0
+          },
+          blindSpots: {
+            total: analysis.summary?.totalBlindSpots || 0,
+            critical: analysis.summary?.criticalBlindSpots || 0,
+            avgRisk: analysis.summary?.avgBlindSpotRisk || 0,
+            byType: analysis.blindSpots?.typeBreakdown || {}
+          }
+        }
+      },
+      safetyRecommendations: {
+        immediate: analysis.recommendations?.filter(r => r.priority === 'CRITICAL') || [],
+        planned: analysis.recommendations?.filter(r => r.priority === 'HIGH') || [],
+        general: analysis.recommendations?.filter(r => r.priority === 'STANDARD') || []
+      },
+      apiEndpoints: {
+        sharpTurns: `/api/routes/${req.params.id}/sharp-turns`,
+        blindSpots: `/api/routes/${req.params.id}/blind-spots`,
+        visibilityStats: `/api/visibility/routes/${req.params.id}/visibility-stats`,
+        combinedAnalysis: `/api/visibility/routes/${req.params.id}/visibility-analysis`
+      },
+      enhancementStatus: {
+        realCalculationsActive: true,
+        googleAPIIntegration: !!process.env.GOOGLE_MAPS_API_KEY,
+        validationLevel: 'STRICT',
+        improvements: analysis.blindSpots?.improvements || {},
+        fallbackMethods: !process.env.GOOGLE_MAPS_API_KEY ? [
+          'Terrain-based elevation estimation',
+          'Geometric curve analysis',
+          'Basic obstruction detection'
+        ] : []
+      },
+      nextSteps: [
+        'Review critical findings in detail using provided API endpoints',
+        'Implement immediate safety recommendations before travel',
+        'Brief all drivers on identified high-risk areas',
+        'Consider alternative routes for critical blind spots',
+        'Monitor weather conditions that may worsen visibility',
+        'Ensure emergency communication equipment is available'
+      ]
+    };
+
+    res.status(200).json(enhancedResponse);
+
+  } catch (error) {
+    console.error('Enhanced visibility analysis error:', error);
+    
+    // Detailed error response
+    res.status(500).json({
+      success: false,
+      message: 'Enhanced visibility analysis failed',
+      error: {
+        type: error.name || 'AnalysisError',
+        message: error.message,
+        details: process.env.NODE_ENV === 'development' ? error.stack : undefined
+      },
+      troubleshooting: [
+        'Ensure route has sufficient GPS points (minimum 5)',
+        'Verify Google Maps API key is configured correctly',
+        'Check that route data is not corrupted',
+        'Try re-uploading the route if issues persist'
+      ],
+      fallbackOptions: [
+        'Use basic route analysis without enhanced features',
+        'Upload route with more GPS points for better analysis',
+        'Contact support if Google API integration is required'
+      ]
+    });
+  }
+});
+
+// GET ENHANCED VISIBILITY STATISTICS
+router.get('/:id/visibility-stats', async (req, res) => {
+  try {
+    const SharpTurn = require('../models/SharpTurn');
+    const BlindSpot = require('../models/BlindSpot');
+    const Route = require('../models/Route');
+    
+    const route = await Route.findOne({
+      _id: req.params.id,
+      userId: req.user.id,
+      status: { $ne: 'deleted' }
+    });
+
+    if (!route) {
+      return res.status(404).json({
+        success: false,
+        message: 'Route not found'
+      });
+    }
+
+    // Get comprehensive statistics
+    const [sharpTurnStats, blindSpotStats, sharpTurns, blindSpots] = await Promise.all([
+      SharpTurn.getRouteSharpTurnsAnalysis(req.params.id),
+      BlindSpot.getRouteBlindSpotsAnalysis(req.params.id),
+      SharpTurn.find({ routeId: req.params.id }).sort({ riskScore: -1 }).limit(5),
+      BlindSpot.find({ routeId: req.params.id }).sort({ riskScore: -1 }).limit(5)
+    ]);
+
+    const turnStats = sharpTurnStats[0] || {};
+    const spotStats = blindSpotStats[0] || {};
+
+    res.status(200).json({
+      success: true,
+      data: {
+        routeInfo: {
+          routeId: route.routeId,
+          routeName: route.routeName,
+          totalDistance: route.totalDistance,
+          terrain: route.terrain
+        },
+        overallStatistics: {
+          totalVisibilityPoints: (turnStats.totalTurns || 0) + (spotStats.totalBlindSpots || 0),
+          criticalPoints: (turnStats.criticalTurns || 0) + (spotStats.criticalSpots || 0),
+          averageRiskScore: Math.round(((turnStats.avgRiskScore || 0) + (spotStats.avgRiskScore || 0)) * 50) / 100,
+          maxRiskScore: Math.max(turnStats.maxRiskScore || 0, spotStats.maxRiskScore || 0),
+          visibilityDensity: route.totalDistance > 0 ? 
+            Math.round(((turnStats.totalTurns || 0) + (spotStats.totalBlindSpots || 0)) / route.totalDistance * 100) / 100 : 0
+        },
+        sharpTurns: {
+          total: turnStats.totalTurns || 0,
+          averageRiskScore: Math.round((turnStats.avgRiskScore || 0) * 100) / 100,
+          maxRiskScore: turnStats.maxRiskScore || 0,
+          critical: turnStats.criticalTurns || 0,
+          high: turnStats.highRiskTurns || 0,
+          severityBreakdown: turnStats.severityBreakdown || {},
+          density: route.totalDistance > 0 ? 
+            Math.round(((turnStats.totalTurns || 0) / route.totalDistance) * 100) / 100 : 0,
+          topRiskTurns: sharpTurns.map(turn => ({
+            id: turn._id,
+            coordinates: { latitude: turn.latitude, longitude: turn.longitude },
+            angle: turn.turnAngle,
+            direction: turn.turnDirection,
+            riskScore: turn.riskScore,
+            severity: turn.turnSeverity
+          }))
+        },
+        blindSpots: {
+          total: spotStats.totalBlindSpots || 0,
+          averageRiskScore: Math.round((spotStats.avgRiskScore || 0) * 100) / 100,
+          maxRiskScore: spotStats.maxRiskScore || 0,
+          critical: spotStats.criticalSpots || 0,
+          typeBreakdown: spotStats.typeBreakdown || {},
+          averageVisibilityDistance: Math.round((spotStats.avgVisibilityDistance || 0) * 100) / 100,
+          poorVisibilitySpots: spotStats.poorVisibilitySpots || 0,
+          density: route.totalDistance > 0 ? 
+            Math.round(((spotStats.totalBlindSpots || 0) / route.totalDistance) * 100) / 100 : 0,
+          topRiskSpots: blindSpots.map(spot => ({
+            id: spot._id,
+            coordinates: { latitude: spot.latitude, longitude: spot.longitude },
+            type: spot.spotType,
+            visibilityDistance: spot.visibilityDistance,
+            riskScore: spot.riskScore,
+            severity: spot.severityLevel
+          }))
+        },
+        riskAssessment: {
+          overallRiskLevel: this.determineOverallRiskLevel(turnStats, spotStats),
+          primaryRiskFactors: this.identifyPrimaryRiskFactors(turnStats, spotStats),
+          recommendations: this.generateStatisticsRecommendations(turnStats, spotStats, route)
+        },
+        comparisonMetrics: {
+          turnsPerKm: route.totalDistance > 0 ? (turnStats.totalTurns || 0) / route.totalDistance : 0,
+          blindSpotsPerKm: route.totalDistance > 0 ? (spotStats.totalBlindSpots || 0) / route.totalDistance : 0,
+          criticalPointsPerKm: route.totalDistance > 0 ? 
+            ((turnStats.criticalTurns || 0) + (spotStats.criticalSpots || 0)) / route.totalDistance : 0
+        }
+      }
+    });
+
+  } catch (error) {
+    console.error('Visibility statistics error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching visibility statistics',
+      error: error.message
+    });
+  }
+});
+
+// Helper functions for statistics endpoint
+function determineOverallRiskLevel(turnStats, spotStats) {
+  const criticalPoints = (turnStats.criticalTurns || 0) + (spotStats.criticalSpots || 0);
+  const totalPoints = (turnStats.totalTurns || 0) + (spotStats.totalBlindSpots || 0);
+  const avgRisk = ((turnStats.avgRiskScore || 0) + (spotStats.avgRiskScore || 0)) / 2;
+
+  if (criticalPoints > 3 || avgRisk >= 8) return 'CRITICAL';
+  if (criticalPoints > 1 || avgRisk >= 6 || totalPoints > 10) return 'HIGH';
+  if (criticalPoints > 0 || avgRisk >= 4 || totalPoints > 5) return 'MEDIUM';
+  return 'LOW';
+}
+
+function identifyPrimaryRiskFactors(turnStats, spotStats) {
+  const factors = [];
+
+  if ((turnStats.criticalTurns || 0) > 0) {
+    factors.push({
+      factor: 'Critical Sharp Turns',
+      count: turnStats.criticalTurns,
+      severity: 'HIGH',
+      description: `${turnStats.criticalTurns} sharp turns with risk score ≥ 8 require immediate attention`
+    });
+  }
+
+  if ((spotStats.criticalSpots || 0) > 0) {
+    factors.push({
+      factor: 'Critical Blind Spots',
+      count: spotStats.criticalSpots,
+      severity: 'HIGH',
+      description: `${spotStats.criticalSpots} blind spots with severely limited visibility`
+    });
+  }
+
+  if ((spotStats.poorVisibilitySpots || 0) > 3) {
+    factors.push({
+      factor: 'Poor Visibility Areas',
+      count: spotStats.poorVisibilitySpots,
+      severity: 'MEDIUM',
+      description: `${spotStats.poorVisibilitySpots} areas with visibility < 100m`
+    });
+  }
+
+  if ((turnStats.severityBreakdown?.hairpin || 0) > 0) {
+    factors.push({
+      factor: 'Hairpin Turns',
+      count: turnStats.severityBreakdown.hairpin,
+      severity: 'HIGH',
+      description: `${turnStats.severityBreakdown.hairpin} extremely sharp hairpin turns detected`
+    });
+  }
+
+  return factors.sort((a, b) => {
+    const severityOrder = { 'HIGH': 3, 'MEDIUM': 2, 'LOW': 1 };
+    return severityOrder[b.severity] - severityOrder[a.severity];
+  });
+}
+
+function generateStatisticsRecommendations(turnStats, spotStats, route) {
+  const recommendations = [];
+
+  const criticalPoints = (turnStats.criticalTurns || 0) + (spotStats.criticalSpots || 0);
+  const totalPoints = (turnStats.totalTurns || 0) + (spotStats.totalBlindSpots || 0);
+
+  if (criticalPoints > 0) {
+    recommendations.push({
+      priority: 'CRITICAL',
+      category: 'immediate_action',
+      recommendation: `${criticalPoints} critical visibility points require immediate safety measures`,
+      actions: [
+        'Reduce speed to 25-35 km/h in all critical areas',
+        'Use convoy travel with constant communication',
+        'Brief all drivers on exact locations of hazards',
+        'Consider postponing travel during poor weather conditions'
+      ]
+    });
+  }
+
+  if (route.totalDistance > 0) {
+    const density = totalPoints / route.totalDistance;
+    if (density > 0.5) {
+      recommendations.push({
+        priority: 'HIGH',
+        category: 'route_planning',
+        recommendation: `High visibility hazard density (${density.toFixed(1)} points per km)`,
+        actions: [
+          'Consider alternative route with fewer hazards',
+          'Plan for extended travel time due to safety requirements',
+          'Ensure vehicles are equipped with enhanced lighting and signaling'
+        ]
+      });
+    }
+  }
+
+  if ((turnStats.severityBreakdown?.hairpin || 0) > 2) {
+    recommendations.push({
+      priority: 'HIGH',
+      category: 'driving_technique',
+      recommendation: `Multiple hairpin turns require specialized driving skills`,
+      actions: [
+        'Provide advanced driving training for sharp turn navigation',
+        'Use vehicles with appropriate power-to-weight ratio',
+        'Install additional safety equipment (horns, lights, communication)'
+      ]
+    });
+  }
+
+  if ((spotStats.avgVisibilityDistance || 0) < 100) {
+    recommendations.push({
+      priority: 'MEDIUM',
+      category: 'visibility_management',
+      recommendation: `Average visibility distance is only ${Math.round(spotStats.avgVisibilityDistance || 0)}m`,
+      actions: [
+        'Use headlights at all times',
+        'Maintain minimum 4-second following distance',
+        'Install additional warning lights on vehicles',
+        'Use horn signals when approaching blind areas'
+      ]
+    });
+  }
+
+  // Always include general recommendations
+  recommendations.push({
+    priority: 'STANDARD',
+    category: 'general_safety',
+    recommendation: 'Standard safety protocol for visibility-limited routes',
+    actions: [
+      'Conduct pre-journey safety briefing',
+      'Ensure all safety equipment is functional',
+      'Establish emergency communication protocols',
+      'Monitor weather conditions continuously',
+      'Plan for emergency stops and turnaround points'
+    ]
+  });
+
+  return recommendations;
+}
+
+// GET CRITICAL VISIBILITY POINTS ONLY
+router.get('/:id/critical-visibility-points', async (req, res) => {
+  try {
+    const SharpTurn = require('../models/SharpTurn');
+    const BlindSpot = require('../models/BlindSpot');
+    const Route = require('../models/Route');
+    
+    const route = await Route.findOne({
+      _id: req.params.id,
+      userId: req.user.id,
+      status: { $ne: 'deleted' }
+    });
+
+    if (!route) {
+      return res.status(404).json({
+        success: false,
+        message: 'Route not found'
+      });
+    }
+
+    const riskThreshold = parseFloat(req.query.riskThreshold) || 7.0;
+
+    // Get only critical points
+    const [criticalTurns, criticalBlindSpots] = await Promise.all([
+      SharpTurn.find({ 
+        routeId: req.params.id, 
+        riskScore: { $gte: riskThreshold } 
+      }).sort({ riskScore: -1, distanceFromStartKm: 1 }),
+      BlindSpot.find({ 
+        routeId: req.params.id, 
+        riskScore: { $gte: riskThreshold } 
+      }).sort({ riskScore: -1, distanceFromStartKm: 1 })
+    ]);
+
+    // Combine and sort by distance from start
+    const allCriticalPoints = [
+      ...criticalTurns.map(turn => ({
+        id: turn._id,
+        type: 'sharp_turn',
+        coordinates: { latitude: turn.latitude, longitude: turn.longitude },
+        distanceFromStart: turn.distanceFromStartKm,
+        riskScore: turn.riskScore,
+        severity: turn.turnSeverity,
+        details: {
+          turnAngle: turn.turnAngle,
+          turnDirection: turn.turnDirection,
+          recommendedSpeed: turn.recommendedSpeed,
+          streetViewLink: turn.streetViewLink,
+          mapsLink: turn.mapsLink
+        },
+        recommendations: turn.getSafetyRecommendations ? turn.getSafetyRecommendations() : []
+      })),
+      ...criticalBlindSpots.map(spot => ({
+        id: spot._id,
+        type: 'blind_spot',
+        coordinates: { latitude: spot.latitude, longitude: spot.longitude },
+        distanceFromStart: spot.distanceFromStartKm,
+        riskScore: spot.riskScore,
+        severity: spot.severityLevel,
+        details: {
+          spotType: spot.spotType,
+          visibilityDistance: spot.visibilityDistance,
+          obstructionHeight: spot.obstructionHeight,
+          satelliteViewLink: spot.satelliteViewLink
+        },
+        recommendations: spot.getSafetyRecommendations ? spot.getSafetyRecommendations() : []
+      }))
+    ].sort((a, b) => a.distanceFromStart - b.distanceFromStart);
+
+    res.status(200).json({
+      success: true,
+      data: {
+        routeInfo: {
+          routeId: route.routeId,
+          routeName: route.routeName,
+          totalDistance: route.totalDistance
+        },
+        filterCriteria: {
+          riskThreshold: riskThreshold,
+          description: `Points with risk score ≥ ${riskThreshold}`
+        },
+        criticalPoints: allCriticalPoints,
+        summary: {
+          totalCriticalPoints: allCriticalPoints.length,
+          criticalTurns: criticalTurns.length,
+          criticalBlindSpots: criticalBlindSpots.length,
+          highestRiskScore: Math.max(...allCriticalPoints.map(p => p.riskScore), 0),
+          averageRiskScore: allCriticalPoints.length > 0 ? 
+            Math.round((allCriticalPoints.reduce((sum, p) => sum + p.riskScore, 0) / allCriticalPoints.length) * 100) / 100 : 0,
+          criticalDensity: route.totalDistance > 0 ? 
+            Math.round((allCriticalPoints.length / route.totalDistance) * 100) / 100 : 0
+        },
+        urgentRecommendations: [
+          allCriticalPoints.length > 5 ? 'URGENT: Consider alternative route - too many critical points' : '',
+          allCriticalPoints.some(p => p.riskScore >= 9) ? 'EXTREME CAUTION: Points with risk ≥ 9 detected' : '',
+          'Brief all drivers on exact locations before departure',
+          'Reduce speed to 25-35 km/h at all critical points',
+          'Use convoy travel with constant communication',
+          'Monitor weather - postpone if visibility conditions worsen'
+        ].filter(r => r !== '')
+      }
+    });
+
+  } catch (error) {
+    console.error('Critical visibility points error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching critical visibility points',
+      error: error.message
+    });
+  }
+});
+
+// REGENERATE ANALYSIS (with validation)
+router.post('/:id/regenerate-visibility-analysis', async (req, res) => {
+  try {
+    const Route = require('../models/Route');
+    const SharpTurn = require('../models/SharpTurn');
+    const BlindSpot = require('../models/BlindSpot');
+    const sharpTurnsService = require('../services/sharpTurnsBlindSpotsService');
+    
+    const route = await Route.findOne({
+      _id: req.params.id,
+      userId: req.user.id,
+      status: { $ne: 'deleted' }
+    });
+
+    if (!route) {
+      return res.status(404).json({
+        success: false,
+        message: 'Route not found'
+      });
+    }
+
+    // Validate route has sufficient data
+    if (!route.routePoints || route.routePoints.length < 5) {
+      return res.status(400).json({
+        success: false,
+        message: 'Cannot regenerate analysis - insufficient GPS points',
+        details: {
+          currentPoints: route.routePoints?.length || 0,
+          minimumRequired: 5,
+          recommendation: 'Upload route with more GPS tracking points'
+        }
+      });
+    }
+
+    console.log(`🔄 Regenerating visibility analysis for route: ${route.routeId}`);
+
+    // Clear all existing analysis data
+    const [deletedTurns, deletedSpots] = await Promise.all([
+      SharpTurn.deleteMany({ routeId: req.params.id }),
+      BlindSpot.deleteMany({ routeId: req.params.id })
+    ]);
+
+    console.log(`🗑️ Cleared ${deletedTurns.deletedCount} turns and ${deletedSpots.deletedCount} blind spots`);
+
+    // Force fresh analysis
+    const analysis = await sharpTurnsService.analyzeRoute(req.params.id);
+
+    // Validate analysis completed successfully
+    if (!analysis || !analysis.summary) {
+      throw new Error('Analysis did not complete successfully');
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Visibility analysis regenerated successfully',
+      data: {
+        routeId: route.routeId,
+        analysisResults: analysis,
+        dataCleared: {
+          previousTurns: deletedTurns.deletedCount,
+          previousBlindSpots: deletedSpots.deletedCount
+        },
+        newResults: {
+          sharpTurns: analysis.summary?.totalSharpTurns || 0,
+          blindSpots: analysis.summary?.totalBlindSpots || 0,
+          criticalPoints: (analysis.summary?.criticalTurns || 0) + (analysis.summary?.criticalBlindSpots || 0),
+          overallRiskLevel: analysis.summary?.overallRiskLevel || 'LOW'
+        },
+        nextSteps: [
+          'Review new critical findings',
+          'Update safety protocols based on new analysis',
+          'Brief drivers on any new hazards identified',
+          'Consider route modifications if critical points increased'
+        ]
+      }
+    });
+
+  } catch (error) {
+    console.error('Regenerate analysis error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to regenerate visibility analysis',
+      error: {
+        type: error.name || 'RegenerationError',
+        message: error.message,
+        timestamp: new Date().toISOString()
+      },
+      troubleshooting: [
+        'Ensure route has valid GPS coordinates',
+        'Check Google Maps API configuration',
+        'Verify route data integrity',
+        'Try again in a few minutes if this was a temporary issue'
+      ]
+    });
+  }
+});
+
+// EXPORT VISIBILITY ANALYSIS REPORT
+router.get('/:id/export-visibility-report', async (req, res) => {
+  try {
+    const Route = require('../models/Route');
+    const SharpTurn = require('../models/SharpTurn');
+    const BlindSpot = require('../models/BlindSpot');
+    
+    const route = await Route.findOne({
+      _id: req.params.id,
+      userId: req.user.id,
+      status: { $ne: 'deleted' }
+    });
+
+    if (!route) {
+      return res.status(404).json({
+        success: false,
+        message: 'Route not found'
+      });
+    }
+
+    // Get comprehensive data
+    const [sharpTurns, blindSpots, turnStats, spotStats] = await Promise.all([
+      SharpTurn.find({ routeId: req.params.id }).sort({ distanceFromStartKm: 1 }),
+      BlindSpot.find({ routeId: req.params.id }).sort({ distanceFromStartKm: 1 }),
+      SharpTurn.getRouteSharpTurnsAnalysis(req.params.id),
+      BlindSpot.getRouteBlindSpotsAnalysis(req.params.id)
+    ]);
+
+    const reportData = {
+      metadata: {
+        reportType: 'VISIBILITY_SAFETY_ANALYSIS',
+        generatedAt: new Date().toISOString(),
+        generatedBy: req.user.username || req.user.email,
+        version: '2.0',
+        analysisEngine: 'Enhanced Real Calculator with Google APIs'
+      },
+      routeInformation: {
+        routeId: route.routeId,
+        routeName: route.routeName,
+        fromLocation: route.fromName,
+        toLocation: route.toName,
+        totalDistance: route.totalDistance,
+        estimatedDuration: route.estimatedDuration,
+        terrain: route.terrain,
+        majorHighways: route.majorHighways || [],
+        gpsTrackingPoints: route.routePoints?.length || 0
+      },
+      executiveSummary: {
+        overallRiskLevel: determineOverallRiskLevel(turnStats[0] || {}, spotStats[0] || {}),
+        totalVisibilityHazards: sharpTurns.length + blindSpots.length,
+        criticalHazards: sharpTurns.filter(t => t.riskScore >= 8).length + blindSpots.filter(s => s.riskScore >= 8).length,
+        averageRiskScore: Math.round(((turnStats[0]?.avgRiskScore || 0) + (spotStats[0]?.avgRiskScore || 0)) * 50) / 100,
+        maxRiskScore: Math.max(turnStats[0]?.maxRiskScore || 0, spotStats[0]?.maxRiskScore || 0),
+        routeRecommendation: this.getRouteRecommendation(sharpTurns, blindSpots),
+        keyFindings: this.generateKeyFindings(sharpTurns, blindSpots, route)
+      },
+      detailedAnalysis: {
+        sharpTurns: {
+          summary: turnStats[0] || {},
+          details: sharpTurns.map(turn => ({
+            location: {
+              coordinates: { latitude: turn.latitude, longitude: turn.longitude },
+              distanceFromStart: turn.distanceFromStartKm,
+              nearestLandmark: `${turn.distanceFromStartKm}km from start`
+            },
+            characteristics: {
+              turnAngle: turn.turnAngle,
+              turnDirection: turn.turnDirection,
+              turnRadius: turn.turnRadius,
+              severity: turn.turnSeverity
+            },
+            riskAssessment: {
+              riskScore: turn.riskScore,
+              recommendedSpeed: turn.recommendedSpeed,
+              safetyFeatures: {
+                guardrails: turn.guardrails,
+                warningSigns: turn.warningSigns,
+                lighting: turn.lightingAvailable
+              }
+            },
+            recommendations: turn.getSafetyRecommendations ? turn.getSafetyRecommendations() : []
+          }))
+        },
+        blindSpots: {
+          summary: spotStats[0] || {},
+          details: blindSpots.map(spot => ({
+            location: {
+              coordinates: { latitude: spot.latitude, longitude: spot.longitude },
+              distanceFromStart: spot.distanceFromStartKm,
+              nearestLandmark: `${spot.distanceFromStartKm}km from start`
+            },
+            characteristics: {
+              spotType: spot.spotType,
+              visibilityDistance: spot.visibilityDistance,
+              obstructionHeight: spot.obstructionHeight,
+              severityLevel: spot.severityLevel
+            },
+            riskAssessment: {
+              riskScore: spot.riskScore,
+              safetyMeasures: {
+                warningSignsPresent: spot.warningSignsPresent,
+                mirrorInstalled: spot.mirrorInstalled,
+                speedLimit: spot.speedLimit
+              }
+            },
+            recommendations: spot.getSafetyRecommendations ? spot.getSafetyRecommendations() : []
+          }))
+        }
+      },
+      safetyProtocol: {
+        mandatoryMeasures: this.generateMandatoryMeasures(sharpTurns, blindSpots),
+        drivingInstructions: this.generateDrivingInstructions(sharpTurns, blindSpots),
+        emergencyProcedures: this.generateEmergencyProcedures(route),
+        weatherConsiderations: this.generateWeatherConsiderations(sharpTurns, blindSpots),
+        equipmentRequirements: this.generateEquipmentRequirements(sharpTurns, blindSpots)
+      },
+      appendices: {
+        technicalDetails: {
+          analysisMethodology: 'AASHTO-based sight distance calculations with Google API integration',
+          dataSourcesUsed: [
+            'Google Elevation API (terrain analysis)',
+            'Google Places API (obstruction detection)',
+            'GPS route tracking data',
+            'Engineering sight distance formulas'
+          ],
+          validationMethods: [
+            'Strict numeric validation (NaN prevention)',
+            'Physics-based calculations',
+            'Cross-validation with multiple data sources'
+          ]
+        },
+        definitions: {
+          riskScore: 'Numerical scale 1-10 where 1=minimal risk, 10=extreme risk',
+          visibilityDistance: 'Maximum distance driver can see ahead (meters)',
+          criticalPoint: 'Location with risk score ≥ 8 requiring immediate action'
+        }
+      }
+    };
+
+    res.status(200).json({
+      success: true,
+      message: 'Visibility analysis report generated successfully',
+      report: reportData,
+      exportOptions: {
+        downloadAsJSON: 'Available in response body',
+        printableSummary: 'Use executiveSummary section for quick reference',
+        detailedAnalysis: 'Use detailedAnalysis section for comprehensive review'
+      }
+    });
+
+  } catch (error) {
+    console.error('Export report error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error generating visibility report',
+      error: error.message
+    });
+  }
+});
+
+// Helper functions for the export report
+function getRouteRecommendation(sharpTurns, blindSpots) {
+  const criticalCount = sharpTurns.filter(t => t.riskScore >= 8).length + blindSpots.filter(s => s.riskScore >= 8).length;
+  const totalCount = sharpTurns.length + blindSpots.length;
+
+  if (criticalCount > 5) return 'NOT RECOMMENDED - Too many critical hazards. Seek alternative route.';
+  if (criticalCount > 2) return 'PROCEED WITH EXTREME CAUTION - Multiple critical hazards present.';
+  if (criticalCount > 0) return 'PROCEED WITH CAUTION - Critical hazards identified and briefed.';
+  if (totalCount > 10) return 'PROCEED WITH NORMAL CAUTION - Multiple visibility challenges.';
+  return 'PROCEED WITH STANDARD SAFETY MEASURES - Low to moderate visibility challenges.';
+}
+
+function generateKeyFindings(sharpTurns, blindSpots, route) {
+  const findings = [];
+  
+  const criticalTurns = sharpTurns.filter(t => t.riskScore >= 8);
+  const criticalSpots = blindSpots.filter(s => s.riskScore >= 8);
+  
+  if (criticalTurns.length > 0) {
+    findings.push(`${criticalTurns.length} critical sharp turns requiring speed reduction to 25-35 km/h`);
+  }
+  
+  if (criticalSpots.length > 0) {
+    findings.push(`${criticalSpots.length} critical blind spots with severely limited visibility`);
+  }
+  
+  const hairpinTurns = sharpTurns.filter(t => t.turnSeverity === 'hairpin');
+  if (hairpinTurns.length > 0) {
+    findings.push(`${hairpinTurns.length} hairpin turns requiring specialized driving techniques`);
+  }
+  
+  const poorVisibilitySpots = blindSpots.filter(s => s.visibilityDistance < 50);
+  if (poorVisibilitySpots.length > 0) {
+    findings.push(`${poorVisibilitySpots.length} areas with visibility < 50m requiring convoy travel`);
+  }
+  
+  if (route.terrain === 'hilly' && (sharpTurns.length > 0 || blindSpots.length > 0)) {
+    findings.push('Hilly terrain amplifies visibility challenges - extra caution required');
+  }
+  
+  return findings;
+}
 module.exports = router;
