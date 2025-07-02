@@ -118,10 +118,20 @@ const blindSpotSchema = new mongoose.Schema({
   },
   speedLimit: Number,
   
-  // FIXED: Analysis Data - added 'places_api' to enum
+  // FIXED: Analysis Data - UPDATED enum to include all methods used by real calculator
   analysisMethod: {
     type: String,
-    enum: ['elevation_data', 'street_view', 'satellite_imagery', 'field_survey', 'places_api', 'gps_data'],
+    enum: [
+      'elevation_data', 
+      'street_view', 
+      'satellite_imagery', 
+      'field_survey', 
+      'places_api', 
+      'gps_data',
+      'elevation_ray_tracing',           // ADDED: For real elevation analysis
+      'geometric_sight_distance',        // ADDED: For curve analysis
+      'geometric_shadow_analysis'        // ADDED: For obstruction analysis
+    ],
     default: 'elevation_data'
   },
   confidence: {
