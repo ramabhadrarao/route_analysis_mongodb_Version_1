@@ -267,26 +267,29 @@ const blindSpotSchema = new mongoose.Schema({
   
   // FIXED: Analysis Data with all required enum values
   analysisMethod: {
-    type: String,
-    enum: [
-      'elevation_data', 
-      'street_view', 
-      'satellite_imagery', 
-      'field_survey', 
-      'places_api', 
-      'gps_data',
-      'elevation_ray_tracing',
-      'geometric_sight_distance',
-      'geometric_shadow_analysis',
-      'real_calculations',
-      'google_elevation_api',
-      'aashto_standards',
-      'enhanced_gps_analysis',
-      'REAL_GOOGLE_API',
-      'FALLBACK_MOCK'
-    ],
-    default: 'elevation_data'
-  },
+  type: String,
+  enum: [
+    'elevation_data', 
+    'street_view', 
+    'satellite_imagery', 
+    'field_survey', 
+    'places_api',  // Add this
+    'gps_data',
+    'elevation_ray_tracing',
+    'geometric_sight_distance',
+    'geometric_shadow_analysis',
+    'real_calculations',
+    'google_elevation_api',  // Add this
+    'aashto_standards',
+    'enhanced_gps_analysis',
+    'REAL_GOOGLE_API',  // This exists
+    'FALLBACK_MOCK',
+    'google_places_api',  // Add this (lowercase version)
+    'REAL_GPS_GEOMETRY',
+    'REAL_GOOGLE_ROADS_PLACES_API'
+  ],
+  default: 'elevation_data'
+},
   
   confidence: {
     type: Number,
