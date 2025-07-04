@@ -454,62 +454,34 @@ class EnhancedDataCollectionService {
 
   // 5. ENHANCED WEATHER DATA COLLECTION
   async collectEnhancedWeatherData(route) {
-    try {
-      console.log('🌤️ Collecting enhanced weather data...');
-      
-      const weatherPoints = [];
-      const routeSegments = this.createRouteSegments(route.routePoints, 10);
-      
-      for (const segment of routeSegments) {
-        try {
-          const currentWeather = await apiService.getWeatherData(segment.latitude, segment.longitude);
-          
-          // Get historical weather patterns
-          const historicalData = await this.getHistoricalWeatherPatterns(segment.latitude, segment.longitude);
-          
-          const weatherCondition = new WeatherCondition({
-            routeId: route._id,
-            latitude: segment.latitude,
-            longitude: segment.longitude,
-            season: this.getCurrentSeason(),
-            weatherCondition: this.mapWeatherCondition(currentWeather.condition),
-            averageTemperature: currentWeather.temperature,
-            precipitationMm: historicalData.averagePrecipitation || 0,
-            windSpeedKmph: currentWeather.windSpeed,
-            visibilityKm: currentWeather.visibility,
-            roadSurfaceCondition: this.determineSurfaceCondition(currentWeather),
-            riskScore: this.assessWeatherRisk(currentWeather),
-            dataYear: new Date().getFullYear(),
-            distanceFromStartKm: this.calculateDistanceFromStart(route.routePoints, segment),
-            humidity: currentWeather.humidity || 0,
-            pressure: currentWeather.pressure || 0,
-            uvIndex: historicalData.averageUvIndex || 0,
-            monsoonRisk: this.assessMonsoonRisk(segment.latitude, segment.longitude),
-            extremeWeatherHistory: historicalData.extremeEvents || []
-          });
-          
-          await weatherCondition.save();
-          weatherPoints.push(weatherCondition);
-          
-        } catch (weatherError) {
-          console.warn('Failed to get weather for segment:', weatherError.message);
-        }
+  try {
+    console.log('🌦️ Starting MULTI-SEASONAL weather data collection...');
+    
+    // Use the new enhanced weather service
+    const enhancedWeatherService = require('./enhancedWeatherService');
+    const seasonalResults = await enhancedWeatherService.collectAllSeasonalWeatherData(route._id);
+    
+    return {
+      total: seasonalResults.totalDataPoints || 0,
+      seasonal: seasonalResults.seasonalData,
+      analysis: seasonalResults.analysis,
+      vehiclePredictions: seasonalResults.vehiclePredictions,
+      recommendations: seasonalResults.recommendations,
+      dataQuality: 'multi_seasonal_enhanced',
+      seasons: {
+        winter: seasonalResults.seasonalData.winter?.collected || 0,
+        spring: seasonalResults.seasonalData.spring?.collected || 0,
+        summer: seasonalResults.seasonalData.summer?.collected || 0,
+        monsoon: seasonalResults.seasonalData.monsoon?.collected || 0
       }
-      
-      return {
-        total: weatherPoints.length,
-        averageTemp: weatherPoints.reduce((sum, w) => sum + w.averageTemperature, 0) / weatherPoints.length || 0,
-        averageRisk: weatherPoints.reduce((sum, w) => sum + w.riskScore, 0) / weatherPoints.length || 0,
-        conditions: [...new Set(weatherPoints.map(w => w.weatherCondition))],
-        riskAreas: weatherPoints.filter(w => w.riskScore > 6).length,
-        monsoonRiskAreas: weatherPoints.filter(w => w.monsoonRisk > 5).length
-      };
-      
-    } catch (error) {
-      console.error('Enhanced weather data collection failed:', error);
-      throw error;
-    }
+    };
+    
+  } catch (error) {
+    console.error('Multi-seasonal weather collection failed:', error);
+    // Fallback to basic weather if enhanced fails
+    return await this.collectBasicWeatherData(route);
   }
+}
 
   // Helper Methods
   

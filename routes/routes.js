@@ -362,6 +362,85 @@ router.get('/:id/gps-points', async (req, res) => {
 });
 
 // Comprehensive data collection for a route
+// router.post('/:id/collect-all-data', async (req, res) => {
+//   try {
+//     const Route = require('../models/Route');
+    
+//     const route = await Route.findOne({
+//       _id: req.params.id,
+//       userId: req.user.id,
+//       status: { $ne: 'deleted' }
+//     });
+
+//     if (!route) {
+//       return res.status(404).json({
+//         success: false,
+//         message: 'Route not found'
+//       });
+//     }
+
+//     // Start comprehensive data collection
+//     try {
+//       const dataCollectionService = require('../services/dataCollectionService');
+      
+//       console.log(`🔄 Starting comprehensive data collection for route: ${route.routeId}`);
+      
+//       // Collect all data
+//       const collectionResults = await dataCollectionService.collectAllRouteData(req.params.id);
+
+//       res.status(200).json({
+//         success: true,
+//         message: 'Comprehensive data collection completed',
+//         routeInfo: {
+//           routeId: route.routeId,
+//           routeName: route.routeName,
+//           fromName: route.fromName,
+//           toName: route.toName,
+//           totalDistance: route.totalDistance,
+//           gpsPoints: route.routePoints.length
+//         },
+//         collectionResults,
+//         dataCollected: {
+//           emergencyServices: collectionResults.emergencyServices?.total || 0,
+//           weatherPoints: collectionResults.weatherData?.total || 0,
+//           trafficPoints: collectionResults.trafficData?.total || 0,
+//           accidentAreas: collectionResults.accidentAreas?.total || 0,
+//           roadConditions: collectionResults.roadConditions?.total || 0,
+//           amenities: collectionResults.amenities?.total || 0
+//         },
+//         nextSteps: [
+//           'All route data has been collected and stored',
+//           'You can now view detailed analysis for each data type',
+//           'Risk assessment can be performed using this comprehensive data',
+//           'Use the analysis endpoints to view specific data categories'
+//         ]
+//       });
+//     } catch (dataError) {
+//       console.error('Data collection service error:', dataError);
+//       res.status(200).json({
+//         success: true,
+//         message: 'Data collection initiated (service unavailable)',
+//         routeInfo: {
+//           routeId: route.routeId,
+//           routeName: route.routeName,
+//           fromName: route.fromName,
+//           toName: route.toName,
+//           totalDistance: route.totalDistance,
+//           gpsPoints: route.routePoints.length
+//         },
+//         note: 'Data collection service is being set up. Route is ready for manual analysis.'
+//       });
+//     }
+
+//   } catch (error) {
+//     console.error('Data collection error:', error);
+//     res.status(500).json({
+//       success: false,
+//       message: 'Error during data collection',
+//       error: error.message
+//     });
+//   }
+// });
 router.post('/:id/collect-all-data', async (req, res) => {
   try {
     const Route = require('../models/Route');
@@ -379,47 +458,176 @@ router.post('/:id/collect-all-data', async (req, res) => {
       });
     }
 
-    // Start comprehensive data collection
+    // Start comprehensive data collection with enhanced weather
     try {
       const dataCollectionService = require('../services/dataCollectionService');
+      const enhancedWeatherService = require('../services/enhancedWeatherService'); // 🔥 NEW
       
-      console.log(`🔄 Starting comprehensive data collection for route: ${route.routeId}`);
+      console.log(`🔄 Starting ENHANCED comprehensive data collection for route: ${route.routeId}`);
       
-      // Collect all data
-      const collectionResults = await dataCollectionService.collectAllRouteData(req.params.id);
-
-      res.status(200).json({
+      // ===================================================================
+      // PARALLEL DATA COLLECTION - Faster processing
+      // ===================================================================
+      
+      const dataCollectionPromises = [
+        // 1. Original data collection (roads, emergency, traffic, etc.)
+        dataCollectionService.collectAllRouteData(req.params.id)
+          .catch(error => ({ error: error.message, source: 'dataCollection' })),
+        
+        // 2. 🌦️ NEW: Multi-seasonal weather analysis  
+        enhancedWeatherService.collectAllSeasonalWeatherData(req.params.id)
+          .catch(error => ({ error: error.message, source: 'seasonalWeather' })),
+        
+        // 3. 🔍 Enhanced visibility analysis (sharp turns & blind spots)
+        this.collectVisibilityAnalysis(req.params.id)
+          .catch(error => ({ error: error.message, source: 'visibilityAnalysis' }))
+      ];
+      
+      console.log('📊 Running parallel data collection...');
+      const [originalResults, seasonalWeatherResults, visibilityResults] = await Promise.allSettled(dataCollectionPromises);
+      
+      // ===================================================================
+      // PROCESS RESULTS
+      // ===================================================================
+      
+      const collectionResults = this.processCollectionResults(originalResults);
+      const seasonalWeather = this.processSeasonalWeatherResults(seasonalWeatherResults);
+      const visibilityAnalysis = this.processVisibilityResults(visibilityResults);
+      
+      // ===================================================================
+      // ENHANCED RESPONSE WITH ALL DATA TYPES
+      // ===================================================================
+      
+      const enhancedResponse = {
         success: true,
-        message: 'Comprehensive data collection completed',
+        message: 'ENHANCED comprehensive data collection completed',
         routeInfo: {
           routeId: route.routeId,
           routeName: route.routeName,
           fromName: route.fromName,
           toName: route.toName,
           totalDistance: route.totalDistance,
+          terrain: route.terrain,
           gpsPoints: route.routePoints.length
         },
-        collectionResults,
-        dataCollected: {
-          emergencyServices: collectionResults.emergencyServices?.total || 0,
-          weatherPoints: collectionResults.weatherData?.total || 0,
-          trafficPoints: collectionResults.trafficData?.total || 0,
-          accidentAreas: collectionResults.accidentAreas?.total || 0,
-          roadConditions: collectionResults.roadConditions?.total || 0,
-          amenities: collectionResults.amenities?.total || 0
+        
+        // 📊 ORIGINAL DATA (Emergency, Traffic, etc.)
+        originalDataCollection: {
+          ...collectionResults,
+          status: originalResults.status === 'fulfilled' ? 'success' : 'partial'
         },
+        
+        // 🌦️ NEW: SEASONAL WEATHER DATA  
+        seasonalWeatherAnalysis: {
+          status: seasonalWeatherResults.status === 'fulfilled' ? 'success' : 'failed',
+          data: seasonalWeather,
+          summary: {
+            totalSeasons: seasonalWeather.seasonalData ? Object.keys(seasonalWeather.seasonalData).length : 0,
+            totalDataPoints: seasonalWeather.totalDataPoints || 0,
+            bestSeason: seasonalWeather.analysis?.bestSeason?.season || 'Unknown',
+            worstSeason: seasonalWeather.analysis?.worstSeason?.season || 'Unknown',
+            criticalPeriods: seasonalWeather.analysis?.criticalPeriods?.length || 0,
+            vehiclePredictions: !!seasonalWeather.vehiclePredictions
+          }
+        },
+        
+        // 🔍 ENHANCED VISIBILITY ANALYSIS
+        visibilityAnalysis: {
+          status: visibilityResults.status === 'fulfilled' ? 'success' : 'failed',
+          data: visibilityAnalysis,
+          summary: {
+            sharpTurns: visibilityAnalysis.summary?.totalSharpTurns || 0,
+            blindSpots: visibilityAnalysis.summary?.totalBlindSpots || 0,
+            criticalPoints: (visibilityAnalysis.summary?.criticalTurns || 0) + (visibilityAnalysis.summary?.criticalBlindSpots || 0),
+            overallRiskLevel: visibilityAnalysis.summary?.overallRiskLevel || 'LOW'
+          }
+        },
+        
+        // 📈 COMPREHENSIVE SUMMARY
+        comprehensiveSummary: {
+          dataCategories: {
+            emergencyServices: collectionResults.emergencyServices?.total || 0,
+            weatherPoints: collectionResults.weatherData?.total || 0,
+            seasonalWeatherPoints: seasonalWeather.totalDataPoints || 0,
+            trafficPoints: collectionResults.trafficData?.total || 0,
+            accidentAreas: collectionResults.accidentAreas?.total || 0,
+            roadConditions: collectionResults.roadConditions?.total || 0,
+            amenities: collectionResults.amenities?.total || 0,
+            sharpTurns: visibilityAnalysis.summary?.totalSharpTurns || 0,
+            blindSpots: visibilityAnalysis.summary?.totalBlindSpots || 0
+          },
+          
+          totalDataPoints: this.calculateTotalDataPoints(collectionResults, seasonalWeather, visibilityAnalysis),
+          
+          dataQuality: this.assessOverallDataQuality(originalResults, seasonalWeatherResults, visibilityResults),
+          
+          riskFactors: this.identifyOverallRiskFactors(seasonalWeather, visibilityAnalysis),
+          
+          completionStatus: {
+            originalData: originalResults.status === 'fulfilled' ? '✅ Complete' : '⚠️ Partial',
+            seasonalWeather: seasonalWeatherResults.status === 'fulfilled' ? '✅ Complete' : '❌ Failed',
+            visibilityAnalysis: visibilityResults.status === 'fulfilled' ? '✅ Complete' : '❌ Failed'
+          }
+        },
+        
+        // 🎯 ENHANCED RECOMMENDATIONS
+        enhancedRecommendations: {
+          immediate: this.generateImmediateRecommendations(seasonalWeather, visibilityAnalysis),
+          seasonal: seasonalWeather.recommendations || [],
+          visibility: visibilityAnalysis.recommendations || [],
+          maintenance: seasonalWeather.vehiclePredictions?.recommendations || []
+        },
+        
+        // 🔗 ENHANCED API ENDPOINTS
+        apiEndpoints: {
+          // Original endpoints
+          emergencyServices: `/api/routes/${req.params.id}/emergency-services`,
+          weatherData: `/api/routes/${req.params.id}/weather-data`,
+          trafficData: `/api/routes/${req.params.id}/traffic-data`,
+          roadConditions: `/api/routes/${req.params.id}/road-conditions`,
+          
+          // 🌦️ NEW: Seasonal weather endpoints
+          seasonalWeatherAnalysis: `/api/routes/${req.params.id}/seasonal-weather-analysis`,
+          vehiclePredictions: `/api/routes/${req.params.id}/vehicle-predictions`,
+          seasonalRecommendations: `/api/routes/${req.params.id}/seasonal-recommendations`,
+          
+          // 🔍 Enhanced visibility endpoints
+          sharpTurns: `/api/routes/${req.params.id}/sharp-turns`,
+          blindSpots: `/api/routes/${req.params.id}/blind-spots`,
+          visibilityStats: `/api/routes/${req.params.id}/visibility-stats`,
+          criticalVisibilityPoints: `/api/routes/${req.params.id}/critical-visibility-points`,
+          
+          // 📊 Analysis endpoints
+          comprehensiveAnalysis: `/api/routes/${req.params.id}/comprehensive-analysis`,
+          riskAssessment: `/api/routes/${req.params.id}/risk-assessment`
+        },
+        
+        // 📋 NEXT STEPS
         nextSteps: [
-          'All route data has been collected and stored',
-          'You can now view detailed analysis for each data type',
-          'Risk assessment can be performed using this comprehensive data',
-          'Use the analysis endpoints to view specific data categories'
+          '✅ All route data collection completed with seasonal weather analysis',
+          '🌦️ Review seasonal weather patterns and vehicle predictions',
+          '🔍 Examine visibility hazards (sharp turns and blind spots)',
+          '📊 Use enhanced API endpoints for detailed analysis',
+          '🎯 Implement seasonal recommendations and safety measures',
+          '⚠️ Address any critical risk factors identified',
+          '📈 Monitor data quality and update as needed'
         ]
-      });
+      };
+      
+      // 🚨 ADD CRITICAL ALERTS if high risk detected
+      if (this.hasCriticalRisks(seasonalWeather, visibilityAnalysis)) {
+        enhancedResponse.criticalAlerts = this.generateCriticalAlerts(seasonalWeather, visibilityAnalysis);
+      }
+      
+      res.status(200).json(enhancedResponse);
+
     } catch (dataError) {
-      console.error('Data collection service error:', dataError);
+      console.error('Enhanced data collection service error:', dataError);
+      
+      // Enhanced fallback response
       res.status(200).json({
         success: true,
-        message: 'Data collection initiated (service unavailable)',
+        message: 'Enhanced data collection initiated (some services unavailable)',
         routeInfo: {
           routeId: route.routeId,
           routeName: route.routeName,
@@ -428,19 +636,241 @@ router.post('/:id/collect-all-data', async (req, res) => {
           totalDistance: route.totalDistance,
           gpsPoints: route.routePoints.length
         },
-        note: 'Data collection service is being set up. Route is ready for manual analysis.'
+        status: 'partial_completion',
+        availableServices: {
+          basicDataCollection: '✅ Available',
+          seasonalWeatherAnalysis: '⚠️ Setting up',
+          visibilityAnalysis: '⚠️ Setting up'
+        },
+        note: 'Enhanced data collection services are being configured. Basic route analysis available.',
+        fallbackEndpoints: {
+          basicWeather: `/api/routes/${req.params.id}/weather-data`,
+          basicAnalysis: `/api/routes/${req.params.id}/analytics`
+        },
+        error: dataError.message
       });
     }
 
   } catch (error) {
-    console.error('Data collection error:', error);
+    console.error('Enhanced data collection error:', error);
     res.status(500).json({
       success: false,
-      message: 'Error during data collection',
-      error: error.message
+      message: 'Error during enhanced data collection',
+      error: error.message,
+      troubleshooting: [
+        'Check if all required API keys are configured',
+        'Verify route has sufficient GPS points',
+        'Ensure database connectivity',
+        'Check service dependencies'
+      ]
     });
   }
 });
+
+// Collect enhanced visibility analysis
+async function collectVisibilityAnalysis(routeId) {
+  try {
+    const sharpTurnsService = require('../services/sharpTurnsBlindSpotsService');
+    return await sharpTurnsService.analyzeRoute(routeId);
+  } catch (error) {
+    console.error('Visibility analysis failed:', error);
+    return { error: error.message, summary: { totalSharpTurns: 0, totalBlindSpots: 0 } };
+  }
+}
+// Process collection results
+function processCollectionResults(originalResults) {
+  if (originalResults.status === 'fulfilled') {
+    return originalResults.value;
+  } else {
+    console.error('Original data collection failed:', originalResults.reason);
+    return { 
+      error: originalResults.reason?.message,
+      emergencyServices: { total: 0 },
+      weatherData: { total: 0 },
+      trafficData: { total: 0 }
+    };
+  }
+}
+
+// Process seasonal weather results
+function processSeasonalWeatherResults(seasonalResults) {
+  if (seasonalResults.status === 'fulfilled') {
+    return seasonalResults.value;
+  } else {
+    console.error('Seasonal weather collection failed:', seasonalResults.reason);
+    return { 
+      error: seasonalResults.reason?.message,
+      totalDataPoints: 0,
+      seasonalData: {},
+      analysis: null,
+      vehiclePredictions: null
+    };
+  }
+}
+
+// Process visibility analysis results
+function processVisibilityResults(visibilityResults) {
+  if (visibilityResults.status === 'fulfilled') {
+    return visibilityResults.value;
+  } else {
+    console.error('Visibility analysis failed:', visibilityResults.reason);
+    return { 
+      error: visibilityResults.reason?.message,
+      summary: { totalSharpTurns: 0, totalBlindSpots: 0, criticalTurns: 0, criticalBlindSpots: 0 }
+    };
+  }
+}
+
+// Calculate total data points across all collections
+function calculateTotalDataPoints(originalResults, seasonalWeather, visibilityAnalysis) {
+  const original = (originalResults.emergencyServices?.total || 0) +
+                  (originalResults.weatherData?.total || 0) +
+                  (originalResults.trafficData?.total || 0) +
+                  (originalResults.accidentAreas?.total || 0) +
+                  (originalResults.roadConditions?.total || 0);
+  
+  const seasonal = seasonalWeather.totalDataPoints || 0;
+  const visibility = (visibilityAnalysis.summary?.totalSharpTurns || 0) + 
+                    (visibilityAnalysis.summary?.totalBlindSpots || 0);
+  
+  return original + seasonal + visibility;
+}
+
+// Assess overall data quality
+function assessOverallDataQuality(originalResults, seasonalResults, visibilityResults) {
+  let qualityScore = 0;
+  let maxScore = 3;
+  
+  if (originalResults.status === 'fulfilled') qualityScore += 1;
+  if (seasonalResults.status === 'fulfilled') qualityScore += 1;
+  if (visibilityResults.status === 'fulfilled') qualityScore += 1;
+  
+  const percentage = (qualityScore / maxScore) * 100;
+  
+  if (percentage >= 90) return 'excellent';
+  if (percentage >= 70) return 'good';
+  if (percentage >= 50) return 'fair';
+  return 'poor';
+}
+
+// Identify overall risk factors
+function identifyOverallRiskFactors(seasonalWeather, visibilityAnalysis) {
+  const riskFactors = [];
+  
+  // Seasonal weather risks
+  if (seasonalWeather.analysis?.worstSeason?.score >= 7) {
+    riskFactors.push({
+      category: 'seasonal_weather',
+      risk: 'high',
+      description: `${seasonalWeather.analysis.worstSeason.season} season poses significant weather risks`,
+      impact: 'vehicle_performance_and_safety'
+    });
+  }
+  
+  if (seasonalWeather.analysis?.criticalPeriods?.length > 0) {
+    riskFactors.push({
+      category: 'weather_critical_periods',
+      risk: 'critical',
+      description: `${seasonalWeather.analysis.criticalPeriods.length} critical weather periods identified`,
+      impact: 'travel_restrictions_recommended'
+    });
+  }
+  
+  // Visibility risks
+  const criticalVisibilityPoints = (visibilityAnalysis.summary?.criticalTurns || 0) + 
+                                  (visibilityAnalysis.summary?.criticalBlindSpots || 0);
+  
+  if (criticalVisibilityPoints > 3) {
+    riskFactors.push({
+      category: 'visibility_hazards',
+      risk: 'high',
+      description: `${criticalVisibilityPoints} critical visibility hazards detected`,
+      impact: 'convoy_travel_and_speed_reduction_required'
+    });
+  }
+  
+  return riskFactors;
+}
+
+// Check for critical risks
+function hasCriticalRisks(seasonalWeather, visibilityAnalysis) {
+  const criticalWeather = seasonalWeather.analysis?.worstSeason?.score >= 8;
+  const criticalVisibility = (visibilityAnalysis.summary?.criticalTurns || 0) + 
+                            (visibilityAnalysis.summary?.criticalBlindSpots || 0) > 5;
+  const criticalPeriods = (seasonalWeather.analysis?.criticalPeriods?.length || 0) > 2;
+  
+  return criticalWeather || criticalVisibility || criticalPeriods;
+}
+
+// Generate critical alerts
+function generateCriticalAlerts(seasonalWeather, visibilityAnalysis) {
+  const alerts = [];
+  
+  if (seasonalWeather.analysis?.worstSeason?.score >= 8) {
+    alerts.push({
+      level: 'CRITICAL',
+      category: 'seasonal_weather',
+      message: `EXTREME WEATHER RISK: ${seasonalWeather.analysis.worstSeason.season} season`,
+      action: 'Consider route suspension during critical weather periods',
+      urgency: 'immediate_attention'
+    });
+  }
+  
+  const criticalVisibility = (visibilityAnalysis.summary?.criticalTurns || 0) + 
+                            (visibilityAnalysis.summary?.criticalBlindSpots || 0);
+  
+  if (criticalVisibility > 5) {
+    alerts.push({
+      level: 'CRITICAL',
+      category: 'visibility_hazards',
+      message: `CRITICAL VISIBILITY HAZARDS: ${criticalVisibility} dangerous points`,
+      action: 'Mandatory convoy travel and speed restrictions required',
+      urgency: 'immediate_safety_measures'
+    });
+  }
+  
+  return alerts;
+}
+
+// Generate immediate recommendations
+function generateImmediateRecommendations(seasonalWeather, visibilityAnalysis) {
+  const recommendations = [];
+  
+  // Weather-based immediate actions
+  if (seasonalWeather.analysis?.worstSeason) {
+    recommendations.push({
+      priority: 'HIGH',
+      category: 'seasonal_planning',
+      action: `Avoid travel during ${seasonalWeather.analysis.worstSeason.season} season if possible`,
+      reason: 'High weather risk identified'
+    });
+  }
+  
+  // Visibility-based immediate actions
+  const criticalPoints = (visibilityAnalysis.summary?.criticalTurns || 0) + 
+                        (visibilityAnalysis.summary?.criticalBlindSpots || 0);
+  
+  if (criticalPoints > 0) {
+    recommendations.push({
+      priority: 'CRITICAL',
+      category: 'visibility_safety',
+      action: `Implement convoy travel for ${criticalPoints} critical visibility points`,
+      reason: 'Critical visibility hazards require enhanced safety measures'
+    });
+  }
+  
+  // Vehicle maintenance based on seasonal predictions
+  if (seasonalWeather.vehiclePredictions?.recommendations?.length > 0) {
+    recommendations.push({
+      priority: 'MEDIUM',
+      category: 'vehicle_maintenance',
+      action: 'Review seasonal vehicle maintenance requirements',
+      reason: 'Weather conditions affect vehicle performance'
+    });
+  }
+  
+  return recommendations;
+}
 
 // Get collected emergency services
 router.get('/:id/emergency-services', async (req, res) => {
@@ -1536,6 +1966,117 @@ router.post('/:id/regenerate-visibility-analysis', async (req, res) => {
         'Verify route data integrity',
         'Try again in a few minutes if this was a temporary issue'
       ]
+    });
+  }
+});
+
+// Get comprehensive seasonal weather analysis
+router.get('/:id/seasonal-weather-analysis', async (req, res) => {
+  try {
+    const { routeId } = req.params;
+    const userId = req.user.id;
+    
+    const route = await Route.findOne({
+      _id: routeId,
+      userId,
+      status: { $ne: 'deleted' }
+    });
+
+    if (!route) {
+      return res.status(404).json({
+        success: false,
+        message: 'Route not found'
+      });
+    }
+
+    // Get seasonal weather analysis
+    const enhancedWeatherService = require('../services/enhancedWeatherService');
+    const seasonalAnalysis = await enhancedWeatherService.collectAllSeasonalWeatherData(routeId);
+
+    res.status(200).json({
+      success: true,
+      data: {
+        routeInfo: {
+          routeId: route.routeId,
+          routeName: route.routeName,
+          totalDistance: route.totalDistance,
+          terrain: route.terrain
+        },
+        seasonalWeather: seasonalAnalysis.seasonalData,
+        analysis: seasonalAnalysis.analysis,
+        vehicleRoadPredictions: seasonalAnalysis.vehiclePredictions,
+        recommendations: seasonalAnalysis.recommendations,
+        summary: {
+          totalDataPoints: seasonalAnalysis.totalDataPoints,
+          bestSeason: seasonalAnalysis.analysis?.bestSeason,
+          worstSeason: seasonalAnalysis.analysis?.worstSeason,
+          criticalPeriods: seasonalAnalysis.analysis?.criticalPeriods?.length || 0
+        }
+      }
+    });
+
+  } catch (error) {
+    console.error('Seasonal weather analysis error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching seasonal weather analysis',
+      error: error.message
+    });
+  }
+});
+
+// Get vehicle condition predictions by season
+router.get('/:id/vehicle-predictions', async (req, res) => {
+  try {
+    const { routeId } = req.params;
+    const { season } = req.query; // Optional: specific season
+    
+    const route = await Route.findOne({
+      _id: routeId,
+      userId: req.user.id,
+      status: { $ne: 'deleted' }
+    });
+
+    if (!route) {
+      return res.status(404).json({
+        success: false,
+        message: 'Route not found'
+      });
+    }
+
+    const enhancedWeatherService = require('../services/enhancedWeatherService');
+    const seasonalAnalysis = await enhancedWeatherService.collectAllSeasonalWeatherData(routeId);
+    
+    let vehiclePredictions = seasonalAnalysis.vehiclePredictions;
+    
+    // Filter by specific season if requested
+    if (season && vehiclePredictions.bySeasons[season]) {
+      vehiclePredictions = {
+        [season]: vehiclePredictions.bySeasons[season],
+        comparative: vehiclePredictions.comparative,
+        recommendations: vehiclePredictions.recommendations
+      };
+    }
+
+    res.status(200).json({
+      success: true,
+      data: {
+        routeId: route.routeId,
+        season: season || 'all_seasons',
+        vehiclePredictions,
+        recommendations: {
+          immediate: vehiclePredictions.recommendations?.filter(r => r.priority === 'HIGH') || [],
+          seasonal: vehiclePredictions.recommendations?.filter(r => r.priority === 'MEDIUM') || [],
+          preventive: vehiclePredictions.recommendations?.filter(r => r.priority === 'LOW') || []
+        }
+      }
+    });
+
+  } catch (error) {
+    console.error('Vehicle predictions error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching vehicle predictions'
     });
   }
 });
