@@ -1,9 +1,9 @@
-// File: services/dataCollectionService.js
-// Purpose: Enhanced comprehensive route data collection with detailed information
-// Collects: Emergency services, fuel stations, educational institutions, food stops, etc.
-// Includes: Phone numbers, distances from start/end points, detailed facility information
-const axios = require('axios'); // ✅ ADDED: Missing axios import
-const { logger } = require('../utils/logger'); // ✅ ADDED: Logger for better error handling
+// File: services/dataCollectionService.js - UNIFIED VERSION
+// Purpose: Enhanced comprehensive route data collection storing ALL services in EmergencyService model
+// ALL SERVICE TYPES: Medical, Law Enforcement, Fire, Fuel, Educational, Food, Financial, Transportation
+
+const axios = require('axios');
+const { logger } = require('../utils/logger');
 const apiService = require('./apiService');
 const Route = require('../models/Route');
 const accidentDataService = require('./accidentDataService');
@@ -15,117 +15,304 @@ const WeatherCondition = require('../models/WeatherCondition');
 const TrafficData = require('../models/TrafficData');
 const EmergencyService = require('../models/EmergencyService');
 
-class EnhancedDataCollectionService {
+class UnifiedDataCollectionService {
   
   constructor() {
-          this.googleMapsApiKey = process.env.GOOGLE_MAPS_API_KEY;
+    this.googleMapsApiKey = process.env.GOOGLE_MAPS_API_KEY;
 
-    // Enhanced service categories for comprehensive collection
-    this.serviceCategories = {
-      // Critical Emergency Services
-      emergency: {
-        'hospital': { type: 'hospital', priority: 'critical', radius: 50000 },
-        'emergency_room': { type: 'hospital', priority: 'critical', radius: 30000 },
-        'clinic': { type: 'hospital', priority: 'high', radius: 25000 },
-        'pharmacy': { type: 'hospital', priority: 'medium', radius: 15000 }
+    // UNIFIED service categories - ALL stored in EmergencyService model
+    this.unifiedServiceCategories = {
+      // ============================================================================
+      // EMERGENCY & MEDICAL SERVICES
+      // ============================================================================
+      'hospital': { 
+        type: 'hospital', 
+        priority: 'critical', 
+        radius: 50000,
+        category: 'emergency_medical',
+        servicesOffered: ['Emergency Care', 'Surgery', 'Diagnostics', 'ICU', 'Pharmacy'],
+        emergencyNumber: '108'
       },
-      
-      // Law Enforcement & Security
-      lawEnforcement: {
-        'police': { type: 'police', priority: 'critical', radius: 40000 },
-        'courthouse': { type: 'police', priority: 'medium', radius: 50000 },
-        'prison': { type: 'police', priority: 'low', radius: 30000 }
+      'emergency_room': { 
+        type: 'hospital', 
+        priority: 'critical', 
+        radius: 30000,
+        category: 'emergency_medical',
+        servicesOffered: ['Emergency Care', 'Trauma Care', 'Ambulance'],
+        emergencyNumber: '108'
       },
-      
-      // Fire & Rescue Services
-      fireRescue: {
-        'fire_station': { type: 'fire_station', priority: 'critical', radius: 35000 },
-        'ambulance_service': { type: 'fire_station', priority: 'critical', radius: 40000 }
+      'clinic': { 
+        type: 'hospital', 
+        priority: 'high', 
+        radius: 25000,
+        category: 'emergency_medical',
+        servicesOffered: ['General Medicine', 'Consultation', 'Basic Treatment'],
+        emergencyNumber: '108'
       },
-      
-      // Fuel & Vehicle Services
-      fuelServices: {
-        'gas_station': { type: 'mechanic', priority: 'high', radius: 25000 },
-        'car_repair': { type: 'mechanic', priority: 'medium', radius: 20000 },
-        'car_dealer': { type: 'mechanic', priority: 'low', radius: 30000 },
-        'tire_shop': { type: 'mechanic', priority: 'medium', radius: 15000 }
+      'pharmacy': { 
+        type: 'hospital', 
+        priority: 'medium', 
+        radius: 15000,
+        category: 'emergency_medical',
+        servicesOffered: ['Medicines', 'Medical Supplies', 'Health Products'],
+        emergencyNumber: '108'
       },
-      
-      // Educational Institutions
-      educational: {
-        'school': { type: 'educational', priority: 'medium', radius: 20000 },
-        'university': { type: 'educational', priority: 'medium', radius: 30000 },
-        'college': { type: 'educational', priority: 'medium', radius: 25000 }
+
+      // ============================================================================
+      // LAW ENFORCEMENT & SECURITY
+      // ============================================================================
+      'police': { 
+        type: 'police', 
+        priority: 'critical', 
+        radius: 40000,
+        category: 'law_enforcement',
+        servicesOffered: ['Emergency Response', 'Law Enforcement', 'Traffic Control', 'Crime Investigation'],
+        emergencyNumber: '100'
       },
-      
-      // Food & Rest Stops
-      foodRest: {
-        'restaurant': { type: 'amenity', priority: 'medium', radius: 20000 },
-        'food': { type: 'amenity', priority: 'medium', radius: 15000 },
-        'meal_delivery': { type: 'amenity', priority: 'low', radius: 10000 },
-        'cafe': { type: 'amenity', priority: 'low', radius: 10000 },
-        'lodging': { type: 'amenity', priority: 'high', radius: 30000 }
+      'courthouse': { 
+        type: 'police', 
+        priority: 'medium', 
+        radius: 50000,
+        category: 'law_enforcement',
+        servicesOffered: ['Judicial Services', 'Legal Aid', 'Court Proceedings'],
+        emergencyNumber: '100'
       },
-      
-      // Financial & Communication
-      financial: {
-        'bank': { type: 'amenity', priority: 'medium', radius: 20000 },
-        'atm': { type: 'amenity', priority: 'high', radius: 15000 },
-        'post_office': { type: 'amenity', priority: 'medium', radius: 25000 }
+
+      // ============================================================================
+      // FIRE & RESCUE SERVICES
+      // ============================================================================
+      'fire_station': { 
+        type: 'fire_station', 
+        priority: 'critical', 
+        radius: 35000,
+        category: 'fire_rescue',
+        servicesOffered: ['Fire Fighting', 'Emergency Medical', 'Rescue Operations', 'Hazmat Response'],
+        emergencyNumber: '101'
       },
-      
-      // Transportation Hubs
-      transportation: {
-        'bus_station': { type: 'transport', priority: 'medium', radius: 30000 },
-        'train_station': { type: 'transport', priority: 'medium', radius: 40000 },
-        'airport': { type: 'transport', priority: 'low', radius: 50000 },
-        'taxi_stand': { type: 'transport', priority: 'medium', radius: 15000 }
+
+      // ============================================================================
+      // FUEL & VEHICLE SERVICES
+      // ============================================================================
+      'gas_station': { 
+        type: 'mechanic', 
+        priority: 'high', 
+        radius: 25000,
+        category: 'fuel_vehicle',
+        servicesOffered: ['Fuel', 'Basic Maintenance', 'Car Wash', 'Convenience Store'],
+        fuelTypes: ['Petrol', 'Diesel', 'CNG'],
+        hasATM: true,
+        hasRestroom: true,
+        hasConvenienceStore: true
+      },
+      'car_repair': { 
+        type: 'mechanic', 
+        priority: 'medium', 
+        radius: 20000,
+        category: 'fuel_vehicle',
+        servicesOffered: ['Engine Repair', 'Electrical', 'Body Work', 'Towing', 'Parts'],
+        equipment: ['Diagnostic Tools', 'Lifting Equipment', 'Welding']
+      },
+      'car_dealer': { 
+        type: 'mechanic', 
+        priority: 'low', 
+        radius: 30000,
+        category: 'fuel_vehicle',
+        servicesOffered: ['Sales', 'Service', 'Parts', 'Warranty'],
+        specializations: ['New Vehicles', 'Used Vehicles', 'Commercial Vehicles']
+      },
+
+      // ============================================================================
+      // EDUCATIONAL INSTITUTIONS
+      // ============================================================================
+      'school': { 
+        type: 'educational', 
+        priority: 'medium', 
+        radius: 20000,
+        category: 'educational',
+        servicesOffered: ['Primary Education', 'Secondary Education', 'Emergency Shelter'],
+        institutionType: 'school',
+        safetyFeatures: ['Security Guards', 'CCTV', 'Emergency Exits', 'Medical Room']
+      },
+      'university': { 
+        type: 'educational', 
+        priority: 'medium', 
+        radius: 30000,
+        category: 'educational',
+        servicesOffered: ['Higher Education', 'Research', 'Medical Center', 'Emergency Shelter'],
+        institutionType: 'university',
+        safetyFeatures: ['Security', 'Medical Center', 'Emergency Response Team']
+      },
+      'college': { 
+        type: 'educational', 
+        priority: 'medium', 
+        radius: 25000,
+        category: 'educational',
+        servicesOffered: ['Higher Education', 'Vocational Training', 'Emergency Shelter'],
+        institutionType: 'college',
+        safetyFeatures: ['Campus Security', 'First Aid', 'Emergency Protocols']
+      },
+
+      // ============================================================================
+      // FOOD & REST SERVICES
+      // ============================================================================
+      'restaurant': { 
+        type: 'amenity', 
+        priority: 'medium', 
+        radius: 20000,
+        category: 'food_rest',
+        servicesOffered: ['Food Service', 'Rest Area', 'Restrooms', 'Parking'],
+        stopType: 'restaurant',
+        amenities: ['Dining', 'Parking', 'Restrooms', 'AC'],
+        parkingAvailable: true,
+        restFacilities: ['Restrooms', 'Seating']
+      },
+      'food': { 
+        type: 'amenity', 
+        priority: 'medium', 
+        radius: 15000,
+        category: 'food_rest',
+        servicesOffered: ['Food Service', 'Takeaway', 'Basic Rest'],
+        stopType: 'food_service',
+        amenities: ['Food', 'Basic Seating']
+      },
+      'cafe': { 
+        type: 'amenity', 
+        priority: 'low', 
+        radius: 10000,
+        category: 'food_rest',
+        servicesOffered: ['Coffee', 'Snacks', 'WiFi', 'Rest Area'],
+        stopType: 'cafe',
+        amenities: ['Coffee', 'Snacks', 'WiFi', 'Seating']
+      },
+      'lodging': { 
+        type: 'amenity', 
+        priority: 'high', 
+        radius: 30000,
+        category: 'food_rest',
+        servicesOffered: ['Accommodation', 'Food', 'Rest', 'Security'],
+        stopType: 'lodging',
+        amenities: ['Rooms', 'Restaurant', 'Parking', 'WiFi', 'AC', 'Security'],
+        parkingAvailable: true,
+        truckFriendly: true,
+        restFacilities: ['Rooms', 'Restrooms', 'Common Area']
+      },
+
+      // ============================================================================
+      // FINANCIAL SERVICES
+      // ============================================================================
+      'bank': { 
+        type: 'amenity', 
+        priority: 'medium', 
+        radius: 20000,
+        category: 'financial',
+        servicesOffered: ['Cash Withdrawal', 'Deposits', 'Money Transfer', 'Account Services'],
+        financialServices: ['Banking', 'ATM', 'Money Exchange', 'Loans'],
+        accessibleHours: '10:00 AM - 4:00 PM'
+      },
+      'atm': { 
+        type: 'amenity', 
+        priority: 'high', 
+        radius: 15000,
+        category: 'financial',
+        servicesOffered: ['Cash Withdrawal', 'Balance Inquiry', 'Mini Statement'],
+        financialServices: ['24/7 Cash Withdrawal', 'Balance Check'],
+        accessibleHours: '24/7',
+        isOpen24Hours: true
+      },
+      'post_office': { 
+        type: 'amenity', 
+        priority: 'medium', 
+        radius: 25000,
+        category: 'financial',
+        servicesOffered: ['Mail Services', 'Money Order', 'Savings Account', 'Insurance'],
+        financialServices: ['Postal Services', 'Money Transfer', 'Government Services'],
+        accessibleHours: '10:00 AM - 5:00 PM'
+      },
+
+      // ============================================================================
+      // TRANSPORTATION HUBS
+      // ============================================================================
+      'bus_station': { 
+        type: 'transport', 
+        priority: 'medium', 
+        radius: 30000,
+        category: 'transportation',
+        servicesOffered: ['Bus Transport', 'Ticketing', 'Waiting Area', 'Information'],
+        hubType: 'bus_station',
+        transportModes: ['Local Bus', 'Interstate Bus', 'Private Bus'],
+        connectivity: 'Regional',
+        facilities: ['Waiting Area', 'Ticket Counter', 'Restrooms', 'Food Court']
+      },
+      'train_station': { 
+        type: 'transport', 
+        priority: 'medium', 
+        radius: 40000,
+        category: 'transportation',
+        servicesOffered: ['Train Transport', 'Booking', 'Platform Access', 'Porters'],
+        hubType: 'train_station',
+        transportModes: ['Local Train', 'Express Train', 'Passenger Train'],
+        connectivity: 'National',
+        facilities: ['Platform', 'Booking Office', 'Waiting Room', 'Parking']
+      },
+      'airport': { 
+        type: 'transport', 
+        priority: 'low', 
+        radius: 50000,
+        category: 'transportation',
+        servicesOffered: ['Air Transport', 'Check-in', 'Security', 'Customs'],
+        hubType: 'airport',
+        transportModes: ['Domestic Flights', 'International Flights'],
+        connectivity: 'International',
+        facilities: ['Terminal', 'Check-in', 'Security', 'Lounges', 'Duty Free']
+      },
+      'taxi_stand': { 
+        type: 'transport', 
+        priority: 'medium', 
+        radius: 15000,
+        category: 'transportation',
+        servicesOffered: ['Local Transport', 'Taxi Service', 'Auto Rickshaw'],
+        hubType: 'taxi_stand',
+        transportModes: ['Local Taxi', 'Auto Rickshaw', 'Cab Services'],
+        connectivity: 'Local',
+        facilities: ['Waiting Area', 'Fare Chart', 'Phone Booking']
       }
     };
   }
 
-  // Main enhanced data collection function
+  // ============================================================================
+  // MAIN UNIFIED DATA COLLECTION FUNCTION
+  // ============================================================================
   async collectAllRouteData(routeId) {
     try {
-      console.log(`🔄 Starting ENHANCED comprehensive data collection for route: ${routeId}`);
+      console.log(`🔄 Starting UNIFIED comprehensive data collection for route: ${routeId}`);
       
       const route = await Route.findById(routeId);
       if (!route) {
         throw new Error('Route not found');
       }
 
-      // Enhanced data collection with detailed information
+      // Collect ALL services in parallel using unified approach
       const dataPromises = [
-        this.collectDetailedEmergencyServices(route),
-        this.collectLawEnforcementServices(route),
-        this.collectFireRescueServices(route),
-        this.collectFuelStations(route),
-        this.collectEducationalInstitutions(route),
-        this.collectFoodRestStops(route),
-        this.collectFinancialServices(route),
-        this.collectTransportationHubs(route),
-        this.collectEnhancedWeatherData(route),
-        this.collectDetailedTrafficData(route),
-        this.collectAccidentProneAreas(route),
-        this.collectEnhancedRoadConditions(route),
-        this.collectNetworkCoverage(route),
-        this.collectSecurityAnalysis(route)
+        this.collectAllUnifiedServices(route),           // ALL services in EmergencyService
+        this.collectEnhancedWeatherData(route),          // Weather data
+        this.collectDetailedTrafficData(route),          // Traffic data
+        this.collectAccidentProneAreas(route),           // Accident data
+        this.collectEnhancedRoadConditions(route),       // Road conditions
+        this.collectNetworkCoverage(route),              // Network coverage
+        this.collectSecurityAnalysis(route)              // Security analysis
       ];
 
       const results = await Promise.allSettled(dataPromises);
       
-      // Update processing status sequentially
+      // Update processing status
       const statusUpdates = [
-        'emergencyServices', 'lawEnforcement', 'fireRescue', 'fuelStations',
-        'educational', 'foodRest', 'financial', 'transportation',
-        'weatherData', 'trafficData', 'accidentData', 'roadConditions',
-        'networkCoverage', 'securityData'
+        'emergencyServices', 'weatherData', 'trafficData', 'accidentData', 
+        'roadConditions', 'networkCoverage', 'securityData'
       ];
 
       for (const status of statusUpdates) {
         try {
           await route.updateProcessingStatus(status, true);
-          await new Promise(resolve => setTimeout(resolve, 100)); // Small delay to prevent conflicts
         } catch (statusError) {
           console.warn(`Status update failed for ${status}:`, statusError.message);
         }
@@ -133,41 +320,45 @@ class EnhancedDataCollectionService {
       
       // Process and structure results
       const collectionSummary = {
-        emergencyServices: this.processResult(results[0]),
-        lawEnforcement: this.processResult(results[1]),
-        fireRescue: this.processResult(results[2]),
-        fuelStations: this.processResult(results[3]),
-        educational: this.processResult(results[4]),
-        foodRest: this.processResult(results[5]),
-        financial: this.processResult(results[6]),
-        transportation: this.processResult(results[7]),
-        weatherData: this.processResult(results[8]),
-        trafficData: this.processResult(results[9]),
-        accidentAreas: this.processResult(results[10]),
-        roadConditions: this.processResult(results[11]),
-        networkCoverage: this.processResult(results[12]),
-        securityData: this.processResult(results[13])
+        unifiedServices: this.processResult(results[0]),
+        weatherData: this.processResult(results[1]),
+        trafficData: this.processResult(results[2]),
+        accidentAreas: this.processResult(results[3]),
+        roadConditions: this.processResult(results[4]),
+        networkCoverage: this.processResult(results[5]),
+        securityData: this.processResult(results[6])
       };
 
-      console.log(`✅ Enhanced data collection completed for route: ${routeId}`);
+      console.log(`✅ UNIFIED data collection completed for route: ${routeId}`);
       return collectionSummary;
       
     } catch (error) {
-      console.error('Enhanced data collection failed:', error);
+      console.error('Unified data collection failed:', error);
       throw error;
     }
   }
 
-  // 1. DETAILED EMERGENCY SERVICES (Hospitals, Clinics, Pharmacies)
-  async collectDetailedEmergencyServices(route) {
+  // ============================================================================
+  // UNIFIED SERVICES COLLECTION - ALL IN EmergencyService MODEL
+  // ============================================================================
+  async collectAllUnifiedServices(route) {
     try {
-      console.log('🏥 Collecting detailed emergency services...');
+      console.log('🏥🚓🚒⛽🎓🍽️🏦🚌 Collecting ALL services in unified EmergencyService model...');
       
-      const services = [];
-      const routeSegments = this.createRouteSegments(route.routePoints, 20); // 20 segments for detailed coverage
+      const allServices = [];
+      const routeSegments = this.createRouteSegments(route.routePoints, 25); // 25 segments for comprehensive coverage
       
-      for (const segment of routeSegments) {
-        for (const [serviceKey, config] of Object.entries(this.serviceCategories.emergency)) {
+      let totalProcessed = 0;
+      const totalToProcess = routeSegments.length * Object.keys(this.unifiedServiceCategories).length;
+      
+      for (let segmentIndex = 0; segmentIndex < routeSegments.length; segmentIndex++) {
+        const segment = routeSegments[segmentIndex];
+        
+        console.log(`📍 Processing segment ${segmentIndex + 1}/${routeSegments.length}: ${segment.latitude.toFixed(4)}, ${segment.longitude.toFixed(4)}`);
+        
+        for (const [serviceKey, config] of Object.entries(this.unifiedServiceCategories)) {
+          totalProcessed++;
+          
           try {
             const nearbyServices = await apiService.findNearbyPlaces(
               segment.latitude,
@@ -176,314 +367,232 @@ class EnhancedDataCollectionService {
               config.radius
             );
             
-            // Process each service with detailed information
-            for (const service of nearbyServices.slice(0, 5)) { // Top 5 per segment
-              const distanceFromStart = this.calculateDistanceFromStart(route.routePoints, service);
-              const distanceFromEnd = route.totalDistance - distanceFromStart;
-              const distanceFromRoute = this.calculateDistanceFromRoute(route.routePoints, service);
-              
-              // Get additional details
-              const serviceDetails = await this.getPlaceDetails(service.placeId);
-              
-              const emergencyService = new EmergencyService({
-                routeId: route._id,
-                serviceType: this.mapEmergencyServiceType(serviceKey),
-                name: service.name,
-                latitude: service.latitude,
-                longitude: service.longitude,
-                phoneNumber: serviceDetails.phoneNumber || 'Not available',
-                emergencyNumber: this.getEmergencyNumber(serviceKey),
-                address: serviceDetails.address || service.vicinity,
-                operatingHours: serviceDetails.operatingHours || 'Hours not available',
-                servicesOffered: this.getServicesOffered(serviceKey),
-                distanceFromRouteKm: distanceFromRoute,
-                distanceFromStartKm: distanceFromStart,
-                distanceFromEndKm: distanceFromEnd,
-                responseTimeMinutes: this.estimateResponseTime(distanceFromRoute, serviceKey),
-                availabilityScore: this.calculateAvailabilityScore(service, distanceFromRoute),
-                priority: config.priority,
-                rating: service.rating || 0,
-                website: serviceDetails.website || '',
-                accessibility: serviceDetails.accessibility || 'Unknown'
-              });
-              
-              await emergencyService.save();
-              services.push(emergencyService);
-            }
-          } catch (serviceError) {
-            console.warn(`Failed to get ${serviceKey} services:`, serviceError.message);
-          }
-        }
-      }
-      
-      return {
-        total: services.length,
-        hospitals: services.filter(s => s.serviceType === 'hospital').length,
-        clinics: services.filter(s => s.name.toLowerCase().includes('clinic')).length,
-        pharmacies: services.filter(s => s.name.toLowerCase().includes('pharmacy')).length,
-        emergencyRooms: services.filter(s => s.name.toLowerCase().includes('emergency')).length,
-        averageDistance: this.calculateAverageDistance(services),
-        averageResponseTime: services.reduce((sum, s) => sum + s.responseTimeMinutes, 0) / services.length || 0,
-        coverage: this.assessCoverage(services, route.totalDistance)
-      };
-      
-    } catch (error) {
-      console.error('Emergency services collection failed:', error);
-      throw error;
-    }
-  }
-
-  // 2. LAW ENFORCEMENT & SECURITY SERVICES
-  async collectLawEnforcementServices(route) {
-    try {
-      console.log('👮 Collecting law enforcement services...');
-      
-      const services = [];
-      const routeSegments = this.createRouteSegments(route.routePoints, 15);
-      
-      for (const segment of routeSegments) {
-        for (const [serviceKey, config] of Object.entries(this.serviceCategories.lawEnforcement)) {
-          try {
-            const nearbyServices = await apiService.findNearbyPlaces(
-              segment.latitude,
-              segment.longitude,
-              serviceKey,
-              config.radius
-            );
+            console.log(`   ${config.category}: Found ${nearbyServices.length} ${serviceKey} services`);
             
-            for (const service of nearbyServices.slice(0, 3)) {
-              const distanceFromStart = this.calculateDistanceFromStart(route.routePoints, service);
-              const distanceFromEnd = route.totalDistance - distanceFromStart;
-              const distanceFromRoute = this.calculateDistanceFromRoute(route.routePoints, service);
-              
-              const serviceDetails = await this.getPlaceDetails(service.placeId);
-              
-              const lawEnforcementService = new EmergencyService({
-                routeId: route._id,
-                serviceType: 'police',
-                name: service.name,
-                latitude: service.latitude,
-                longitude: service.longitude,
-                phoneNumber: serviceDetails.phoneNumber || '100', // Police emergency number
-                emergencyNumber: '100',
-                address: serviceDetails.address || service.vicinity,
-                operatingHours: serviceDetails.operatingHours || '24/7',
-                servicesOffered: ['Emergency Response', 'Law Enforcement', 'Traffic Control'],
-                distanceFromRouteKm: distanceFromRoute,
-                distanceFromStartKm: distanceFromStart,
-                distanceFromEndKm: distanceFromEnd,
-                responseTimeMinutes: this.estimateResponseTime(distanceFromRoute, 'police'),
-                availabilityScore: this.calculateAvailabilityScore(service, distanceFromRoute),
-                priority: config.priority,
-                jurisdiction: this.determineJurisdiction(service.latitude, service.longitude),
-                specializedUnits: this.getSpecializedUnits(serviceKey)
-              });
-              
-              await lawEnforcementService.save();
-              services.push(lawEnforcementService);
+            // Process each service found
+            for (const service of nearbyServices.slice(0, 3)) { // Top 3 per type per segment
+              try {
+                const unifiedService = await this.createUnifiedService(
+                  service, route, serviceKey, config, segment
+                );
+                
+                if (unifiedService) {
+                  allServices.push(unifiedService);
+                  console.log(`      ✅ Saved: ${service.name} (${config.category})`);
+                }
+              } catch (serviceError) {
+                console.warn(`      ❌ Failed to save ${service.name}:`, serviceError.message);
+              }
             }
-          } catch (serviceError) {
-            console.warn(`Failed to get ${serviceKey} services:`, serviceError.message);
-          }
-        }
-      }
-      
-      return {
-        total: services.length,
-        policeStations: services.filter(s => s.name.toLowerCase().includes('police')).length,
-        trafficPolice: services.filter(s => s.name.toLowerCase().includes('traffic')).length,
-        averageDistance: this.calculateAverageDistance(services),
-        coverage: this.assessCoverage(services, route.totalDistance)
-      };
-      
-    } catch (error) {
-      console.error('Law enforcement services collection failed:', error);
-      throw error;
-    }
-  }
-
-  // 3. FIRE & RESCUE SERVICES
-  async collectFireRescueServices(route) {
-    try {
-      console.log('🚒 Collecting fire & rescue services...');
-      
-      const services = [];
-      const routeSegments = this.createRouteSegments(route.routePoints, 12);
-      
-      for (const segment of routeSegments) {
-        for (const [serviceKey, config] of Object.entries(this.serviceCategories.fireRescue)) {
-          try {
-            const nearbyServices = await apiService.findNearbyPlaces(
-              segment.latitude,
-              segment.longitude,
-              serviceKey,
-              config.radius
-            );
             
-            for (const service of nearbyServices.slice(0, 3)) {
-              const distanceFromStart = this.calculateDistanceFromStart(route.routePoints, service);
-              const distanceFromEnd = route.totalDistance - distanceFromStart;
-              const distanceFromRoute = this.calculateDistanceFromRoute(route.routePoints, service);
-              
-              const serviceDetails = await this.getPlaceDetails(service.placeId);
-              
-              const fireRescueService = new EmergencyService({
-                routeId: route._id,
-                serviceType: 'fire_station',
-                name: service.name,
-                latitude: service.latitude,
-                longitude: service.longitude,
-                phoneNumber: serviceDetails.phoneNumber || '101',
-                emergencyNumber: '101',
-                address: serviceDetails.address || service.vicinity,
-                operatingHours: '24/7',
-                servicesOffered: ['Fire Fighting', 'Emergency Medical', 'Rescue Operations', 'Hazmat Response'],
-                distanceFromRouteKm: distanceFromRoute,
-                distanceFromStartKm: distanceFromStart,
-                distanceFromEndKm: distanceFromEnd,
-                responseTimeMinutes: this.estimateResponseTime(distanceFromRoute, 'fire_station'),
-                availabilityScore: this.calculateAvailabilityScore(service, distanceFromRoute),
-                priority: config.priority,
-                equipment: this.getFireEquipment(serviceKey),
-                specializations: this.getFireSpecializations()
-              });
-              
-              await fireRescueService.save();
-              services.push(fireRescueService);
+            // Rate limiting between API calls
+            if (totalProcessed % 10 === 0) {
+              console.log(`   Progress: ${totalProcessed}/${totalToProcess} API calls completed`);
+              await new Promise(resolve => setTimeout(resolve, 500));
             }
-          } catch (serviceError) {
-            console.warn(`Failed to get ${serviceKey} services:`, serviceError.message);
-          }
-        }
-      }
-      
-      return {
-        total: services.length,
-        fireStations: services.filter(s => s.serviceType === 'fire_station').length,
-        averageDistance: this.calculateAverageDistance(services),
-        coverage: this.assessCoverage(services, route.totalDistance)
-      };
-      
-    } catch (error) {
-      console.error('Fire & rescue services collection failed:', error);
-      throw error;
-    }
-  }
-
-  // 4. FUEL STATIONS & VEHICLE SERVICES
-  async collectFuelStations(route) {
-    try {
-      console.log('⛽ Collecting fuel stations & vehicle services...');
-      
-      const services = [];
-      const routeSegments = this.createRouteSegments(route.routePoints, 25); // More segments for fuel stations
-      
-      for (const segment of routeSegments) {
-        for (const [serviceKey, config] of Object.entries(this.serviceCategories.fuelServices)) {
-          try {
-            const nearbyServices = await apiService.findNearbyPlaces(
-              segment.latitude,
-              segment.longitude,
-              serviceKey,
-              config.radius
-            );
             
-            for (const service of nearbyServices.slice(0, 4)) {
-              const distanceFromStart = this.calculateDistanceFromStart(route.routePoints, service);
-              const distanceFromEnd = route.totalDistance - distanceFromStart;
-              const distanceFromRoute = this.calculateDistanceFromRoute(route.routePoints, service);
-              
-              const serviceDetails = await this.getPlaceDetails(service.placeId);
-              
-              const fuelService = {
-                routeId: route._id,
-                serviceType: serviceKey,
-                name: service.name,
-                latitude: service.latitude,
-                longitude: service.longitude,
-                phoneNumber: serviceDetails.phoneNumber || 'Not available',
-                address: serviceDetails.address || service.vicinity,
-                operatingHours: serviceDetails.operatingHours || 'Hours not available',
-                distanceFromRouteKm: distanceFromRoute,
-                distanceFromStartKm: distanceFromStart,
-                distanceFromEndKm: distanceFromEnd,
-                priority: config.priority,
-                rating: service.rating || 0,
-                priceLevel: service.priceLevel || 0,
-                fuelTypes: this.getFuelTypes(serviceKey),
-                services: this.getVehicleServices(serviceKey),
-                amenities: serviceDetails.amenities || [],
-                isOpen24Hours: this.checkIfOpen24Hours(serviceDetails.operatingHours),
-                hasATM: serviceDetails.hasATM || false,
-                hasRestroom: serviceDetails.hasRestroom || false,
-                hasConvenienceStore: serviceDetails.hasConvenienceStore || false
-              };
-              
-              // Save as EmergencyService with mechanic type for consistency
-              const emergencyService = new EmergencyService({
-                ...fuelService,
-                serviceType: 'mechanic',
-                emergencyNumber: 'N/A',
-                responseTimeMinutes: 0,
-                availabilityScore: this.calculateAvailabilityScore(service, distanceFromRoute)
-              });
-              
-              await emergencyService.save();
-              services.push(emergencyService);
-            }
           } catch (serviceError) {
-            console.warn(`Failed to get ${serviceKey} services:`, serviceError.message);
+            console.warn(`   ❌ Failed to get ${serviceKey} services:`, serviceError.message);
           }
         }
       }
       
-      return {
-        total: services.length,
-        gasStations: services.filter(s => s.name.toLowerCase().includes('gas') || s.name.toLowerCase().includes('petrol')).length,
-        repairShops: services.filter(s => s.name.toLowerCase().includes('repair')).length,
-        averageDistance: this.calculateAverageDistance(services),
-        coverage: this.assessCoverage(services, route.totalDistance),
-        open24Hours: services.filter(s => s.isOpen24Hours).length
+      // Categorize results for summary
+      const servicesByCategory = {
+        emergency_medical: allServices.filter(s => s.category === 'emergency_medical'),
+        law_enforcement: allServices.filter(s => s.category === 'law_enforcement'),
+        fire_rescue: allServices.filter(s => s.category === 'fire_rescue'),
+        fuel_vehicle: allServices.filter(s => s.category === 'fuel_vehicle'),
+        educational: allServices.filter(s => s.category === 'educational'),
+        food_rest: allServices.filter(s => s.category === 'food_rest'),
+        financial: allServices.filter(s => s.category === 'financial'),
+        transportation: allServices.filter(s => s.category === 'transportation')
       };
       
+      const summary = {
+        total: allServices.length,
+        byCategory: Object.fromEntries(
+          Object.entries(servicesByCategory).map(([cat, services]) => [cat, services.length])
+        ),
+        byServiceType: {
+          hospital: allServices.filter(s => s.serviceType === 'hospital').length,
+          police: allServices.filter(s => s.serviceType === 'police').length,
+          fire_station: allServices.filter(s => s.serviceType === 'fire_station').length,
+          mechanic: allServices.filter(s => s.serviceType === 'mechanic').length,
+          educational: allServices.filter(s => s.serviceType === 'educational').length,
+          amenity: allServices.filter(s => s.serviceType === 'amenity').length,
+          transport: allServices.filter(s => s.serviceType === 'transport').length
+        },
+        coverage: {
+          emergencyServices: servicesByCategory.emergency_medical.length + 
+                            servicesByCategory.law_enforcement.length + 
+                            servicesByCategory.fire_rescue.length,
+          essentialServices: servicesByCategory.fuel_vehicle.length + 
+                           servicesByCategory.food_rest.length + 
+                           servicesByCategory.financial.length,
+          supportServices: servicesByCategory.educational.length + 
+                          servicesByCategory.transportation.length
+        },
+        averageDistance: this.calculateAverageDistance(allServices),
+        coverage24Hours: allServices.filter(s => s.isOpen24Hours).length,
+        highPriority: allServices.filter(s => s.priority === 'critical').length
+      };
+      
+      console.log(`✅ UNIFIED Services Collection Summary:`);
+      console.log(`   Total Services: ${summary.total}`);
+      console.log(`   Emergency Services: ${summary.coverage.emergencyServices}`);
+      console.log(`   Essential Services: ${summary.coverage.essentialServices}`);
+      console.log(`   Support Services: ${summary.coverage.supportServices}`);
+      console.log(`   24/7 Services: ${summary.coverage24Hours}`);
+      
+      return summary;
+      
     } catch (error) {
-      console.error('Fuel stations collection failed:', error);
+      console.error('Unified services collection failed:', error);
       throw error;
     }
   }
 
-  // 5. ENHANCED WEATHER DATA COLLECTION
-  async collectEnhancedWeatherData(route) {
-  try {
-    console.log('🌦️ Starting MULTI-SEASONAL weather data collection...');
-    
-    // Use the new enhanced weather service
-    const enhancedWeatherService = require('./enhancedWeatherService');
-    const seasonalResults = await enhancedWeatherService.collectAllSeasonalWeatherData(route._id);
-    
-    return {
-      total: seasonalResults.totalDataPoints || 0,
-      seasonal: seasonalResults.seasonalData,
-      analysis: seasonalResults.analysis,
-      vehiclePredictions: seasonalResults.vehiclePredictions,
-      recommendations: seasonalResults.recommendations,
-      dataQuality: 'multi_seasonal_enhanced',
-      seasons: {
-        winter: seasonalResults.seasonalData.winter?.collected || 0,
-        spring: seasonalResults.seasonalData.spring?.collected || 0,
-        summer: seasonalResults.seasonalData.summer?.collected || 0,
-        monsoon: seasonalResults.seasonalData.monsoon?.collected || 0
-      }
-    };
-    
-  } catch (error) {
-    console.error('Multi-seasonal weather collection failed:', error);
-    // Fallback to basic weather if enhanced fails
-    return await this.collectBasicWeatherData(route);
-  }
-}
+  // ============================================================================
+  // CREATE UNIFIED SERVICE ENTRY
+  // ============================================================================
+  async createUnifiedService(service, route, serviceKey, config, segment) {
+    try {
+      // Calculate distances
+      const distanceFromStart = this.calculateDistanceFromStart(route.routePoints, service);
+      const distanceFromEnd = route.totalDistance - distanceFromStart;
+      const distanceFromRoute = this.calculateDistanceFromRoute(route.routePoints, service);
+      
+      // Get additional details from Google Places API
+      const serviceDetails = await this.getPlaceDetails(service.placeId);
+      
+      // Create unified service object based on category
+      const baseService = {
+        routeId: route._id,
+        serviceType: config.type,
+        name: service.name,
+        latitude: service.latitude,
+        longitude: service.longitude,
+        
+        // Contact Information
+        phoneNumber: serviceDetails.phoneNumber || 'Not available',
+        emergencyNumber: config.emergencyNumber || 'N/A',
+        website: serviceDetails.website || '',
+        address: serviceDetails.address || service.vicinity,
+        operatingHours: serviceDetails.operatingHours || 'Hours not available',
+        
+        // Distance Information
+        distanceFromRouteKm: distanceFromRoute,
+        distanceFromStartKm: distanceFromStart,
+        distanceFromEndKm: distanceFromEnd,
+        
+        // Service Information
+        servicesOffered: config.servicesOffered || ['General Services'],
+        responseTimeMinutes: this.estimateResponseTime(distanceFromRoute, config.type),
+        availabilityScore: this.calculateAvailabilityScore(service, distanceFromRoute),
+        
+        // Quality Metrics
+        priority: config.priority,
+        rating: service.rating || 0,
+        priceLevel: service.priceLevel || 0,
+        
+        // Accessibility
+        accessibility: serviceDetails.accessibility || 'Unknown',
+        amenities: serviceDetails.amenities || [],
+        isOpen24Hours: config.isOpen24Hours || this.checkIfOpen24Hours(serviceDetails.operatingHours),
+        
+        // Service Category
+        category: config.category,
+        originalPlaceType: serviceKey,
+        
+        // Data Source
+        dataSource: 'GOOGLE_PLACES_API',
+        verificationStatus: 'unverified',
+        lastUpdated: new Date()
+      };
 
-  // Helper Methods
+      // Add category-specific fields
+      switch (config.category) {
+        case 'emergency_medical':
+          Object.assign(baseService, {
+            specializations: this.getMedicalSpecializations(serviceKey),
+            emergencyServices: config.servicesOffered
+          });
+          break;
+          
+        case 'law_enforcement':
+          Object.assign(baseService, {
+            jurisdiction: this.determineJurisdiction(service.latitude, service.longitude),
+            specializedUnits: this.getSpecializedUnits(serviceKey)
+          });
+          break;
+          
+        case 'fire_rescue':
+          Object.assign(baseService, {
+            equipment: config.equipment || ['Standard Fire Equipment'],
+            specializations: config.servicesOffered
+          });
+          break;
+          
+        case 'fuel_vehicle':
+          Object.assign(baseService, {
+            fuelTypes: config.fuelTypes || [],
+            hasATM: config.hasATM || false,
+            hasRestroom: config.hasRestroom || false,
+            hasConvenienceStore: config.hasConvenienceStore || false,
+            equipment: config.equipment || []
+          });
+          break;
+          
+        case 'educational':
+          Object.assign(baseService, {
+            institutionType: config.institutionType,
+            studentCapacity: this.estimateStudentCapacity(serviceKey),
+            safetyFeatures: config.safetyFeatures || [],
+            emergencyContact: serviceDetails.phoneNumber || 'Not available'
+          });
+          break;
+          
+        case 'food_rest':
+          Object.assign(baseService, {
+            stopType: config.stopType,
+            cuisineType: this.getCuisineType(service.name),
+            parkingAvailable: config.parkingAvailable || false,
+            truckFriendly: config.truckFriendly || false,
+            restFacilities: config.restFacilities || ['Basic Facilities']
+          });
+          break;
+          
+        case 'financial':
+          Object.assign(baseService, {
+            financialServices: config.financialServices || [],
+            accessibleHours: config.accessibleHours || 'Business Hours'
+          });
+          break;
+          
+        case 'transportation':
+          Object.assign(baseService, {
+            hubType: config.hubType,
+            transportModes: config.transportModes || [],
+            connectivity: config.connectivity || 'Local',
+            facilities: config.facilities || ['Basic Facilities']
+          });
+          break;
+      }
+      
+      // Save to EmergencyService model
+      const emergencyService = new EmergencyService(baseService);
+      return await emergencyService.save();
+      
+    } catch (error) {
+      console.error('Failed to create unified service:', error);
+      return null;
+    }
+  }
+
+  // ============================================================================
+  // HELPER METHODS (reusing existing ones from original code)
+  // ============================================================================
   
   createRouteSegments(routePoints, numberOfSegments) {
     const segments = [];
@@ -499,7 +608,6 @@ class EnhancedDataCollectionService {
   calculateDistanceFromStart(routePoints, targetPoint) {
     if (!routePoints || routePoints.length === 0) return 0;
     
-    // Find the nearest route point
     let minDistance = Infinity;
     let nearestPointIndex = 0;
     
@@ -515,7 +623,6 @@ class EnhancedDataCollectionService {
       }
     }
     
-    // Return distance from start to nearest point
     return routePoints[nearestPointIndex].distanceFromStart || 0;
   }
 
@@ -550,223 +657,109 @@ class EnhancedDataCollectionService {
     return R * c;
   }
 
-  // MINIMAL FIXES for services/dataCollectionService.js
-// Only add these lines at the top of your existing file
+  async getPlaceDetails(placeId) {
+    try {
+      if (!this.googleMapsApiKey) {
+        return {
+          phoneNumber: 'API_KEY_NOT_CONFIGURED',
+          address: 'Address unavailable - API key required',
+          operatingHours: 'Hours unavailable',
+          website: '',
+          accessibility: 'Unknown',
+          amenities: []
+        };
+      }
 
-// ✅ ADD THESE IMPORTS at the very top (after existing imports):
-// const axios = require('axios'); // Missing axios import
-// const { logger } = require('../utils/logger'); // Fix logger import
+      const url = `https://maps.googleapis.com/maps/api/place/details/json?` +
+        `place_id=${placeId}&` +
+        `fields=formatted_phone_number,formatted_address,opening_hours,website,business_status&` +
+        `key=${this.googleMapsApiKey}`;
 
-// ✅ REPLACE the existing getPlaceDetails method with this fixed version:
-async getPlaceDetails(placeId) {
-  try {
-    if (!this.googleMapsApiKey) {
-      console.warn('Google Maps API key not configured - returning minimal data');
+      const response = await axios.get(url, { timeout: 10000 });
+      
+      if (response.data.status === 'OK' && response.data.result) {
+        const place = response.data.result;
+        
+        return {
+          phoneNumber: place.formatted_phone_number || 'Not available',
+          address: place.formatted_address || 'Address not available',
+          operatingHours: this.formatOperatingHours(place.opening_hours),
+          website: place.website || '',
+          accessibility: this.assessAccessibility(place),
+          amenities: this.extractAmenities(place)
+        };
+      }
+      
       return {
-        phoneNumber: 'API_KEY_NOT_CONFIGURED',
-        address: 'Address unavailable - API key required',
+        phoneNumber: 'Not available',
+        address: 'Address unavailable',
         operatingHours: 'Hours unavailable',
         website: '',
         accessibility: 'Unknown',
-        amenities: [],
-        dataSource: 'NO_API_KEY',
-        lastUpdated: new Date()
+        amenities: []
       };
-    }
-
-    // ✅ FIXED: Use correct field names and remove invalid fields
-    const url = `https://maps.googleapis.com/maps/api/place/details/json?` +
-      `place_id=${placeId}&` +
-      `fields=formatted_phone_number,formatted_address,opening_hours,website,business_status&` +
-      `key=${this.googleMapsApiKey}`;
-
-    console.log(`📡 Getting place details for: ${placeId}`);
-
-    const response = await axios.get(url, { 
-      timeout: 10000,
-      headers: {
-        'Accept': 'application/json',
-        'User-Agent': 'HPCL-Journey-Risk-Management/2.0'
-      }
-    });
-    
-    console.log(`📡 Google Places API Response Status: ${response.status}`);
-    console.log(`📄 Google Places API Response:`, JSON.stringify(response.data, null, 2));
-    
-    if (response.data.status === 'OK' && response.data.result) {
-      const place = response.data.result;
       
-      console.log(`✅ Place details retrieved successfully for: ${place.name || 'Unknown'}`);
-      
+    } catch (error) {
       return {
-        phoneNumber: place.formatted_phone_number || 'Not available',
-        address: place.formatted_address || 'Address not available',
-        operatingHours: this.formatOperatingHours(place.opening_hours),
-        website: place.website || '',
-        accessibility: this.assessAccessibility(place),
-        amenities: this.extractAmenities(place),
-        businessStatus: place.business_status || 'UNKNOWN',
-        dataSource: 'GOOGLE_PLACES_API',
-        lastUpdated: new Date()
-      };
-    } else {
-      console.warn(`❌ Google Places API returned status: ${response.data.status}`);
-      console.warn(`❌ Error message: ${response.data.error_message || 'No error message'}`);
-      
-      // Return fallback data with API status info
-      return {
-        phoneNumber: `API_STATUS_${response.data.status}`,
+        phoneNumber: 'API_ERROR',
         address: 'Address unavailable - API error',
         operatingHours: 'Hours unavailable',
         website: '',
         accessibility: 'Unknown',
-        amenities: [],
-        dataSource: 'PLACES_API_ERROR',
-        apiStatus: response.data.status,
-        apiError: response.data.error_message,
-        lastUpdated: new Date()
+        amenities: []
       };
     }
-    
-  } catch (error) {
-    console.error('❌ Google Places API error:', error.message);
-    
-    if (error.response) {
-      console.error('❌ API Response Status:', error.response.status);
-      console.error('❌ API Response Data:', error.response.data);
-    }
-    
-    // Return fallback data instead of throwing
-    return {
-      phoneNumber: 'API_ERROR',
-      address: 'Address unavailable - API error',
-      operatingHours: 'Hours unavailable',
-      website: '',
-      accessibility: 'Unknown',
-      amenities: [],
-      dataSource: 'API_ERROR',
-      error: error.message,
-      lastUpdated: new Date()
-    };
   }
-}
 
-// Add helper methods
-formatOperatingHours(openingHours) {
-  try {
-    if (!openingHours) {
-      return 'Hours not available';
+  formatOperatingHours(openingHours) {
+    try {
+      if (!openingHours) return 'Hours not available';
+      
+      if (openingHours.weekday_text && openingHours.weekday_text.length > 0) {
+        return openingHours.weekday_text.join('; ');
+      }
+      
+      if (openingHours.open_now !== undefined) {
+        return openingHours.open_now ? 'Currently open' : 'Currently closed';
+      }
+      
+      return 'Hours format not recognized';
+    } catch (error) {
+      return 'Hours formatting error';
     }
-    
-    if (openingHours.weekday_text && openingHours.weekday_text.length > 0) {
-      return openingHours.weekday_text.join('; ');
-    }
-    
-    if (openingHours.open_now !== undefined) {
-      return openingHours.open_now ? 'Currently open' : 'Currently closed';
-    }
-    
-    return 'Hours format not recognized';
-  } catch (error) {
-    console.error('Error formatting operating hours:', error);
-    return 'Hours formatting error';
   }
-}
 
-
-assessAccessibility(place) {
-  try {
-    // Check for wheelchair accessibility
+  assessAccessibility(place) {
     if (place.wheelchair_accessible_entrance !== undefined) {
       return place.wheelchair_accessible_entrance ? 'Wheelchair accessible' : 'Limited accessibility';
     }
-    
-    // Check business status for accessibility hints
-    if (place.business_status === 'OPERATIONAL') {
-      return 'Accessibility information not available - Business operational';
-    }
-    
     return 'Accessibility information not available';
-  } catch (error) {
-    console.error('Error assessing accessibility:', error);
-    return 'Accessibility information unavailable';
   }
-}
 
-extractAmenities(place) {
-  try {
+  extractAmenities(place) {
     const amenities = [];
     
-    // Extract amenities from place types if available
     if (place.types && Array.isArray(place.types)) {
       place.types.forEach(type => {
         switch (type) {
-          case 'atm':
-            amenities.push('ATM Available');
-            break;
-          case 'parking':
-            amenities.push('Parking Available');
-            break;
-          case 'restaurant':
-            amenities.push('Food Service');
-            break;
-          case 'gas_station':
-            amenities.push('Fuel Available');
-            break;
-          case 'hospital':
-            amenities.push('Medical Services');
-            break;
-          case 'pharmacy':
-            amenities.push('Pharmacy Services');
-            break;
-          case 'bank':
-            amenities.push('Banking Services');
-            break;
+          case 'atm': amenities.push('ATM Available'); break;
+          case 'parking': amenities.push('Parking Available'); break;
+          case 'restaurant': amenities.push('Food Service'); break;
+          case 'gas_station': amenities.push('Fuel Available'); break;
+          case 'hospital': amenities.push('Medical Services'); break;
+          case 'pharmacy': amenities.push('Pharmacy Services'); break;
+          case 'bank': amenities.push('Banking Services'); break;
         }
       });
     }
     
-    // Check business status
-    if (place.business_status === 'OPERATIONAL') {
-      amenities.push('Currently Operational');
-    }
-    
     return amenities.length > 0 ? amenities : ['Basic Services'];
-  } catch (error) {
-    console.error('Error extracting amenities:', error);
-    return ['Service Information Unavailable'];
-  }
-}
-
-
-  mapEmergencyServiceType(serviceKey) {
-    const mapping = {
-      'hospital': 'hospital',
-      'emergency_room': 'hospital',
-      'clinic': 'hospital',
-      'pharmacy': 'hospital'
-    };
-    return mapping[serviceKey] || 'hospital';
   }
 
-  getEmergencyNumber(serviceType) {
-    const emergencyNumbers = {
-      'hospital': '108',
-      'emergency_room': '108',
-      'clinic': '108',
-      'pharmacy': '108'
-    };
-    return emergencyNumbers[serviceType] || '108';
-  }
-
-  getServicesOffered(serviceType) {
-    const services = {
-      'hospital': ['Emergency Care', 'Surgery', 'Diagnostics', 'Pharmacy'],
-      'emergency_room': ['Emergency Care', 'Trauma Care', 'Ambulance'],
-      'clinic': ['General Medicine', 'Consultation', 'Basic Treatment'],
-      'pharmacy': ['Medicines', 'Medical Supplies', 'Health Products']
-    };
-    return services[serviceType] || ['General Services'];
+  checkIfOpen24Hours(operatingHours) {
+    if (!operatingHours) return false;
+    return operatingHours.toLowerCase().includes('24') || 
+           operatingHours.toLowerCase().includes('always open');
   }
 
   estimateResponseTime(distance, serviceType) {
@@ -778,7 +771,7 @@ extractAmenities(place) {
     
     const base = baseTime[serviceType] || 15;
     return Math.round(base + (distance * 2));
-  }
+    }
 
   calculateAvailabilityScore(service, distance) {
     let score = 8;
@@ -793,18 +786,336 @@ extractAmenities(place) {
     return services.reduce((sum, s) => sum + (s.distanceFromRouteKm || 0), 0) / services.length;
   }
 
-  assessCoverage(services, totalDistance) {
-    if (services.length === 0) return 'none';
-    const coverage = (services.length / (totalDistance / 50)) * 100; // Services per 50km
-    if (coverage > 80) return 'excellent';
-    if (coverage > 60) return 'good';
-    if (coverage > 40) return 'fair';
-    return 'poor';
+  // ============================================================================
+  // CATEGORY-SPECIFIC HELPER METHODS
+  // ============================================================================
+
+  getMedicalSpecializations(serviceKey) {
+    const specializations = {
+      'hospital': ['General Medicine', 'Emergency Care', 'Surgery', 'ICU'],
+      'emergency_room': ['Emergency Medicine', 'Trauma Care', 'Critical Care'],
+      'clinic': ['General Practice', 'Consultation', 'Basic Treatment'],
+      'pharmacy': ['Medications', 'Health Products', 'Basic Medical Supplies']
+    };
+    return specializations[serviceKey] || ['General Medical Services'];
   }
 
-  processResult(result) {
-    return result.status === 'fulfilled' ? result.value : { error: result.reason?.message };
+  getSpecializedUnits(serviceKey) {
+    const units = {
+      'police': ['Traffic Police', 'Emergency Response', 'Crime Investigation', 'Patrol Units'],
+      'courthouse': ['Judicial Services', 'Legal Aid', 'Court Security']
+    };
+    return units[serviceKey] || ['General Services'];
   }
+
+  determineJurisdiction(latitude, longitude) {
+    // Simplified jurisdiction determination - in real implementation, use administrative boundaries API
+    return 'Local Police Jurisdiction';
+  }
+
+  estimateStudentCapacity(serviceKey) {
+    const capacities = {
+      'school': Math.floor(Math.random() * 1000) + 500,
+      'university': Math.floor(Math.random() * 10000) + 5000,
+      'college': Math.floor(Math.random() * 5000) + 2000
+    };
+    return capacities[serviceKey] || 1000;
+  }
+
+  getCuisineType(name) {
+    const nameLower = name.toLowerCase();
+    if (nameLower.includes('chinese')) return 'Chinese';
+    if (nameLower.includes('pizza')) return 'Italian';
+    if (nameLower.includes('dhaba')) return 'Indian';
+    if (nameLower.includes('mc') || nameLower.includes('kfc')) return 'Fast Food';
+    if (nameLower.includes('south') || nameLower.includes('idli') || nameLower.includes('dosa')) return 'South Indian';
+    if (nameLower.includes('punjabi')) return 'Punjabi';
+    return 'Multi-cuisine';
+  }
+
+  // ============================================================================
+  // ENHANCED WEATHER DATA COLLECTION
+  // ============================================================================
+  async collectEnhancedWeatherData(route) {
+    try {
+      console.log('🌦️ Starting MULTI-SEASONAL weather data collection...');
+      
+      // Use the enhanced weather service for comprehensive seasonal analysis
+      const enhancedWeatherService = require('./enhancedWeatherService');
+      const seasonalResults = await enhancedWeatherService.collectAllSeasonalWeatherData(route._id);
+      
+      return {
+        total: seasonalResults.totalDataPoints || 0,
+        seasonal: seasonalResults.seasonalData,
+        analysis: seasonalResults.analysis,
+        vehiclePredictions: seasonalResults.vehiclePredictions,
+        recommendations: seasonalResults.recommendations,
+        dataQuality: 'multi_seasonal_enhanced',
+        seasons: {
+          winter: seasonalResults.seasonalData?.winter?.collected || 0,
+          spring: seasonalResults.seasonalData?.spring?.collected || 0,
+          summer: seasonalResults.seasonalData?.summer?.collected || 0,
+          monsoon: seasonalResults.seasonalData?.monsoon?.collected || 0
+        }
+      };
+      
+    } catch (error) {
+      console.error('Multi-seasonal weather collection failed:', error);
+      return await this.collectBasicWeatherData(route);
+    }
+  }
+
+  async collectBasicWeatherData(route) {
+    try {
+      console.log('🌤️ Collecting basic weather data...');
+      
+      const weatherPoints = [];
+      const routeSegments = this.createRouteSegments(route.routePoints, 15);
+      
+      for (const segment of routeSegments) {
+        try {
+          const weatherData = await apiService.getWeatherData(segment.latitude, segment.longitude);
+          
+          const weather = new WeatherCondition({
+            routeId: route._id,
+            latitude: segment.latitude,
+            longitude: segment.longitude,
+            season: this.getCurrentSeason(),
+            weatherCondition: this.mapWeatherCondition(weatherData.condition),
+            averageTemperature: weatherData.temperature,
+            humidity: weatherData.humidity,
+            pressure: weatherData.pressure,
+            precipitationMm: 0,
+            windSpeedKmph: weatherData.windSpeed,
+            windDirection: weatherData.windDirection,
+            visibilityKm: weatherData.visibility,
+            roadSurfaceCondition: this.determineSurfaceCondition(weatherData),
+            riskScore: this.assessWeatherRisk(weatherData),
+            distanceFromStartKm: this.calculateDistanceFromStart(route.routePoints, segment),
+            dataSource: 'OPENWEATHER_API'
+          });
+          
+          await weather.save();
+          weatherPoints.push(weather);
+          
+        } catch (weatherError) {
+          console.warn('Failed to get weather for segment:', weatherError.message);
+        }
+      }
+      
+      return {
+        total: weatherPoints.length,
+        averageTemp: weatherPoints.reduce((sum, w) => sum + w.averageTemperature, 0) / weatherPoints.length || 0,
+        averageRisk: weatherPoints.reduce((sum, w) => sum + w.riskScore, 0) / weatherPoints.length || 0
+      };
+      
+    } catch (error) {
+      console.error('Basic weather data collection failed:', error);
+      throw error;
+    }
+  }
+
+  // ============================================================================
+  // DETAILED TRAFFIC DATA COLLECTION
+  // ============================================================================
+  async collectDetailedTrafficData(route) {
+    try {
+      console.log('🚗 Collecting detailed traffic data...');
+      
+      const trafficPoints = [];
+      const routeSegments = this.createRouteSegments(route.routePoints, 20);
+      
+      for (const segment of routeSegments) {
+        try {
+          const trafficData = await apiService.getTrafficData(segment.latitude, segment.longitude);
+          
+          const traffic = new TrafficData({
+            routeId: route._id,
+            latitude: segment.latitude,
+            longitude: segment.longitude,
+            peakHourTrafficCount: Math.round(trafficData.currentSpeed * 10),
+            averageSpeedKmph: trafficData.currentSpeed,
+            congestionLevel: this.determineCongestionLevel(trafficData),
+            bottleneckCauses: this.identifyBottlenecks(trafficData),
+            alternativeRoutesAvailable: this.checkAlternativeRoutes(segment),
+            riskScore: Math.max(1, this.calculateTrafficRiskScore(trafficData)),
+            measurementTime: new Date(),
+            distanceFromStartKm: this.calculateDistanceFromStart(route.routePoints, segment),
+            speedLimit: this.estimateSpeedLimit(segment),
+            roadType: this.determineRoadType(segment),
+            trafficLights: this.estimateTrafficLights(segment),
+            tollPoints: this.identifyTollPoints(segment),
+            constructionZones: this.identifyConstructionZones(segment),
+            dataSource: trafficData.dataSource || 'HERE_TRAFFIC_API'
+          });
+          
+          await traffic.save();
+          trafficPoints.push(traffic);
+          
+        } catch (trafficError) {
+          console.warn('Failed to get traffic for segment:', trafficError.message);
+        }
+      }
+      
+      return {
+        total: trafficPoints.length,
+        averageSpeed: trafficPoints.length > 0 ? 
+          trafficPoints.reduce((sum, t) => sum + t.averageSpeedKmph, 0) / trafficPoints.length : 0,
+        congestionAreas: trafficPoints.filter(t => ['heavy', 'severe'].includes(t.congestionLevel)).length,
+        averageRisk: trafficPoints.length > 0 ? 
+          trafficPoints.reduce((sum, t) => sum + t.riskScore, 0) / trafficPoints.length : 0,
+        tollPoints: trafficPoints.filter(t => t.tollPoints > 0).length,
+        constructionZones: trafficPoints.filter(t => t.constructionZones > 0).length
+      };
+      
+    } catch (error) {
+      console.error('Detailed traffic data collection failed:', error);
+      throw error;
+    }
+  }
+
+  // ============================================================================
+  // COMPREHENSIVE ACCIDENT-PRONE AREAS
+  // ============================================================================
+  async collectAccidentProneAreas(route) {
+    try {
+      console.log('🚨 Collecting REAL accident data from traffic APIs...');
+      
+      const accidentDataService = require('./accidentDataService');
+      const realAccidentResults = await accidentDataService.collectRealAccidentProneAreas(route);
+      
+      if (realAccidentResults.total === 0 && realAccidentResults.apiStatus) {
+        const availableAPIs = Object.values(realAccidentResults.apiStatus)
+          .filter(status => status === 'CONFIGURED').length;
+        
+        if (availableAPIs === 0) {
+          throw new Error('No accident data APIs configured - cannot collect real data');
+        }
+      }
+      
+      return {
+        total: realAccidentResults.total,
+        bySource: realAccidentResults.bySource,
+        highRiskAreas: realAccidentResults.highRiskAreas,
+        averageRisk: realAccidentResults.averageRisk,
+        dataQuality: realAccidentResults.total > 0 ? 'real' : 'api_no_data',
+        confidence: realAccidentResults.total > 0 ? 0.9 : 0.0,
+        apiIntegration: realAccidentResults.apiStatus
+      };
+      
+    } catch (error) {
+      console.error('Real accident data collection failed:', error);
+      throw new Error(`Real accident data collection failed: ${error.message}`);
+    }
+  }
+
+  // ============================================================================
+  // ENHANCED ROAD CONDITIONS
+  // ============================================================================
+  async collectEnhancedRoadConditions(route) {
+    try {
+      console.log('🛣️ Collecting enhanced road conditions...');
+      
+      const roadConditions = [];
+      const routeSegments = this.createRouteSegments(route.routePoints, 25);
+      
+      for (const segment of routeSegments) {
+        try {
+          const roadQuality = this.assessDetailedRoadQuality(segment, route);
+          
+          const roadCondition = new RoadCondition({
+            routeId: route._id,
+            latitude: segment.latitude,
+            longitude: segment.longitude,
+            roadType: this.determineDetailedRoadType(route.majorHighways, segment),
+            surfaceQuality: roadQuality.surface,
+            widthMeters: roadQuality.width,
+            laneCount: roadQuality.lanes,
+            hasPotholes: roadQuality.potholes,
+            underConstruction: roadQuality.construction,
+            riskScore: roadQuality.riskScore,
+            dataSource: 'ENHANCED_ROUTE_ANALYSIS'
+          });
+          
+          await roadCondition.save();
+          roadConditions.push(roadCondition);
+          
+        } catch (roadError) {
+          console.warn('Failed to assess road condition for segment:', roadError.message);
+        }
+      }
+      
+      return {
+        total: roadConditions.length,
+        averageRisk: roadConditions.reduce((sum, r) => sum + r.riskScore, 0) / roadConditions.length || 0,
+        poorConditions: roadConditions.filter(r => ['poor', 'critical'].includes(r.surfaceQuality)).length,
+        constructionZones: roadConditions.filter(r => r.underConstruction).length,
+        potholeAreas: roadConditions.filter(r => r.hasPotholes).length
+      };
+      
+    } catch (error) {
+      console.error('Enhanced road conditions collection failed:', error);
+      throw error;
+    }
+  }
+
+  // ============================================================================
+  // NETWORK COVERAGE ANALYSIS
+  // ============================================================================
+  async collectNetworkCoverage(route) {
+    try {
+      console.log('📶 Analyzing comprehensive network coverage...');
+      
+      const coverageAnalysis = {
+        routeId: route._id,
+        totalDistance: route.totalDistance,
+        terrain: route.terrain,
+        estimatedDeadZones: this.estimateDeadZones(route),
+        coverageQuality: this.assessOverallCoverage(route),
+        riskScore: this.calculateNetworkRiskScore(route),
+        cellTowerDensity: this.estimateCellTowerDensity(route),
+        emergencyCommRisk: this.assessEmergencyCommRisk(route),
+        alternativeCommMethods: ['Satellite Phone', 'Two-way Radio', 'Emergency Beacons'],
+        coverageByOperator: this.estimateCoverageByOperator(route)
+      };
+      
+      return coverageAnalysis;
+      
+    } catch (error) {
+      console.error('Network coverage analysis failed:', error);
+      throw error;
+    }
+  }
+
+  // ============================================================================
+  // SECURITY ANALYSIS
+  // ============================================================================
+  async collectSecurityAnalysis(route) {
+    try {
+      console.log('🔒 Conducting comprehensive security analysis...');
+      
+      const securityAnalysis = {
+        routeId: route._id,
+        overallSecurityRisk: this.calculateOverallSecurityRisk(route),
+        crimeRiskAreas: this.identifyCrimeRiskAreas(route),
+        isolatedAreas: this.identifyIsolatedAreas(route),
+        lightingAssessment: this.assessRouteLighting(route),
+        emergencyResponseTime: this.assessEmergencyResponseCapability(route),
+        securityRecommendations: this.generateSecurityRecommendations(route),
+        nightTravelRisk: this.assessNightTravelRisk(route)
+      };
+      
+      return securityAnalysis;
+      
+    } catch (error) {
+      console.error('Security analysis failed:', error);
+      throw error;
+    }
+  }
+
+  // ============================================================================
+  // UTILITY HELPER METHODS
+  // ============================================================================
 
   getCurrentSeason() {
     const month = new Date().getMonth();
@@ -842,606 +1153,6 @@ extractAmenities(place) {
     return Math.max(1, Math.min(10, risk));
   }
 
-  // Additional helper methods for enhanced data collection
-  
-  getFuelTypes(serviceKey) {
-    const fuelTypes = {
-      'gas_station': ['Petrol', 'Diesel', 'CNG'],
-      'car_repair': [],
-      'car_dealer': [],
-      'tire_shop': []
-    };
-    return fuelTypes[serviceKey] || [];
-  }
-
-  getVehicleServices(serviceKey) {
-    const services = {
-      'gas_station': ['Fuel', 'Basic Maintenance', 'Car Wash'],
-      'car_repair': ['Engine Repair', 'Electrical', 'Body Work', 'Towing'],
-      'car_dealer': ['Sales', 'Service', 'Parts'],
-      'tire_shop': ['Tire Replacement', 'Wheel Alignment', 'Balancing']
-    };
-    return services[serviceKey] || [];
-  }
-
-  // File: services/dataCollectionService.js - Part 2 (Continuation)
-// Purpose: Enhanced comprehensive route data collection - Part 2
-// Continuation from checkIfOpen24Hours method
-
-  checkIfOpen24Hours(operatingHours) {
-    if (!operatingHours) return false;
-    return operatingHours.toLowerCase().includes('24') || 
-           operatingHours.toLowerCase().includes('always open');
-  }
-
-  determineJurisdiction(latitude, longitude) {
-    // Simplified jurisdiction determination based on coordinates
-    // In real implementation, this would query administrative boundaries
-    return 'Local Police';
-  }
-
-  getSpecializedUnits(serviceKey) {
-    const units = {
-      'police': ['Traffic Police', 'Emergency Response', 'Crime Investigation'],
-      'courthouse': ['Judicial Services', 'Legal Aid'],
-      'prison': ['Correctional Services']
-    };
-    return units[serviceKey] || ['General Services'];
-  }
-
-  getFireEquipment(serviceKey) {
-    const equipment = {
-      'fire_station': ['Fire Trucks', 'Ambulances', 'Rescue Equipment', 'Hazmat Gear'],
-      'ambulance_service': ['Ambulances', 'Medical Equipment', 'Emergency Supplies']
-    };
-    return equipment[serviceKey] || ['Basic Equipment'];
-  }
-
-  getFireSpecializations() {
-    return ['Structure Fire', 'Vehicle Fire', 'Wildfire', 'Hazardous Materials', 'Water Rescue'];
-  }
-
-  async getHistoricalWeatherPatterns(latitude, longitude) {
-    try {
-      // Mock historical weather data - would integrate with weather APIs
-      return {
-        averagePrecipitation: Math.random() * 100,
-        averageUvIndex: Math.random() * 10,
-        extremeEvents: ['Heavy Rain (2023)', 'Hailstorm (2022)']
-      };
-    } catch (error) {
-      return {
-        averagePrecipitation: 50,
-        averageUvIndex: 5,
-        extremeEvents: []
-      };
-    }
-  }
-
-  assessMonsoonRisk(latitude, longitude) {
-    // Assess monsoon risk based on geographical location
-    // Higher risk for areas prone to monsoons
-    const monsoonProneRegions = [
-      { lat: 28, lng: 77, risk: 7 }, // Delhi NCR region
-      { lat: 19, lng: 72, risk: 8 }, // Mumbai region
-    ];
-    
-    let risk = 5; // Default moderate risk
-    
-    for (const region of monsoonProneRegions) {
-      const distance = this.calculateDistance(latitude, longitude, region.lat, region.lng);
-      if (distance < 100) { // Within 100km of monsoon-prone region
-        risk = region.risk;
-        break;
-      }
-    }
-    
-    return risk;
-  }
-
-  // 6. EDUCATIONAL INSTITUTIONS
-  async collectEducationalInstitutions(route) {
-    try {
-      console.log('🎓 Collecting educational institutions...');
-      
-      const institutions = [];
-      const routeSegments = this.createRouteSegments(route.routePoints, 10);
-      
-      for (const segment of routeSegments) {
-        for (const [serviceKey, config] of Object.entries(this.serviceCategories.educational)) {
-          try {
-            const nearbyInstitutions = await apiService.findNearbyPlaces(
-              segment.latitude,
-              segment.longitude,
-              serviceKey,
-              config.radius
-            );
-            
-            for (const institution of nearbyInstitutions.slice(0, 3)) {
-              const distanceFromStart = this.calculateDistanceFromStart(route.routePoints, institution);
-              const distanceFromEnd = route.totalDistance - distanceFromStart;
-              const distanceFromRoute = this.calculateDistanceFromRoute(route.routePoints, institution);
-              
-              const institutionDetails = await this.getPlaceDetails(institution.placeId);
-              
-              const educationalInstitution = {
-                routeId: route._id,
-                serviceType: 'educational',
-                name: institution.name,
-                latitude: institution.latitude,
-                longitude: institution.longitude,
-                phoneNumber: institutionDetails.phoneNumber || 'Not available',
-                address: institutionDetails.address || institution.vicinity,
-                operatingHours: institutionDetails.operatingHours || 'School hours',
-                distanceFromRouteKm: distanceFromRoute,
-                distanceFromStartKm: distanceFromStart,
-                distanceFromEndKm: distanceFromEnd,
-                priority: config.priority,
-                rating: institution.rating || 0,
-                institutionType: this.getInstitutionType(serviceKey),
-                studentCapacity: this.estimateStudentCapacity(serviceKey),
-                safetyFeatures: this.getEducationalSafetyFeatures(),
-                emergencyContact: institutionDetails.phoneNumber || 'Not available'
-              };
-              
-              // Store as custom data structure or in a dedicated collection
-              institutions.push(educationalInstitution);
-            }
-          } catch (serviceError) {
-            console.warn(`Failed to get ${serviceKey} institutions:`, serviceError.message);
-          }
-        }
-      }
-      
-      return {
-        total: institutions.length,
-        schools: institutions.filter(i => i.institutionType === 'school').length,
-        universities: institutions.filter(i => i.institutionType === 'university').length,
-        colleges: institutions.filter(i => i.institutionType === 'college').length,
-        averageDistance: this.calculateAverageDistance(institutions),
-        coverage: this.assessCoverage(institutions, route.totalDistance)
-      };
-      
-    } catch (error) {
-      console.error('Educational institutions collection failed:', error);
-      throw error;
-    }
-  }
-
-  // 7. FOOD & REST STOPS
-  async collectFoodRestStops(route) {
-    try {
-      console.log('🍽️ Collecting food & rest stops...');
-      
-      const stops = [];
-      const routeSegments = this.createRouteSegments(route.routePoints, 20);
-      
-      for (const segment of routeSegments) {
-        for (const [serviceKey, config] of Object.entries(this.serviceCategories.foodRest)) {
-          try {
-            const nearbyStops = await apiService.findNearbyPlaces(
-              segment.latitude,
-              segment.longitude,
-              serviceKey,
-              config.radius
-            );
-            
-            for (const stop of nearbyStops.slice(0, 3)) {
-              const distanceFromStart = this.calculateDistanceFromStart(route.routePoints, stop);
-              const distanceFromEnd = route.totalDistance - distanceFromStart;
-              const distanceFromRoute = this.calculateDistanceFromRoute(route.routePoints, stop);
-              
-              const stopDetails = await this.getPlaceDetails(stop.placeId);
-              
-              const foodRestStop = {
-                routeId: route._id,
-                serviceType: 'amenity',
-                name: stop.name,
-                latitude: stop.latitude,
-                longitude: stop.longitude,
-                phoneNumber: stopDetails.phoneNumber || 'Not available',
-                address: stopDetails.address || stop.vicinity,
-                operatingHours: stopDetails.operatingHours || 'Restaurant hours',
-                distanceFromRouteKm: distanceFromRoute,
-                distanceFromStartKm: distanceFromStart,
-                distanceFromEndKm: distanceFromEnd,
-                priority: config.priority,
-                rating: stop.rating || 0,
-                priceLevel: stop.priceLevel || 0,
-                stopType: this.getStopType(serviceKey),
-                cuisineType: this.getCuisineType(stop.name),
-                amenities: this.getFoodAmenities(serviceKey),
-                parkingAvailable: this.estimateParkingAvailability(serviceKey),
-                truckFriendly: this.assessTruckFriendliness(serviceKey),
-                restFacilities: this.getRestFacilities(serviceKey)
-              };
-              
-              stops.push(foodRestStop);
-            }
-          } catch (serviceError) {
-            console.warn(`Failed to get ${serviceKey} stops:`, serviceError.message);
-          }
-        }
-      }
-      
-      return {
-        total: stops.length,
-        restaurants: stops.filter(s => s.stopType === 'restaurant').length,
-        cafes: stops.filter(s => s.stopType === 'cafe').length,
-        lodging: stops.filter(s => s.stopType === 'lodging').length,
-        truckStops: stops.filter(s => s.truckFriendly).length,
-        averageDistance: this.calculateAverageDistance(stops),
-        coverage: this.assessCoverage(stops, route.totalDistance)
-      };
-      
-    } catch (error) {
-      console.error('Food & rest stops collection failed:', error);
-      throw error;
-    }
-  }
-
-  // 8. FINANCIAL SERVICES
-  async collectFinancialServices(route) {
-    try {
-      console.log('🏦 Collecting financial services...');
-      
-      const services = [];
-      const routeSegments = this.createRouteSegments(route.routePoints, 15);
-      
-      for (const segment of routeSegments) {
-        for (const [serviceKey, config] of Object.entries(this.serviceCategories.financial)) {
-          try {
-            const nearbyServices = await apiService.findNearbyPlaces(
-              segment.latitude,
-              segment.longitude,
-              serviceKey,
-              config.radius
-            );
-            
-            for (const service of nearbyServices.slice(0, 2)) {
-              const distanceFromStart = this.calculateDistanceFromStart(route.routePoints, service);
-              const distanceFromEnd = route.totalDistance - distanceFromStart;
-              const distanceFromRoute = this.calculateDistanceFromRoute(route.routePoints, service);
-              
-              const serviceDetails = await this.getPlaceDetails(service.placeId);
-              
-              const financialService = {
-                routeId: route._id,
-                serviceType: 'amenity',
-                name: service.name,
-                latitude: service.latitude,
-                longitude: service.longitude,
-                phoneNumber: serviceDetails.phoneNumber || 'Not available',
-                address: serviceDetails.address || service.vicinity,
-                operatingHours: serviceDetails.operatingHours || 'Banking hours',
-                distanceFromRouteKm: distanceFromRoute,
-                distanceFromStartKm: distanceFromStart,
-                distanceFromEndKm: distanceFromEnd,
-                priority: config.priority,
-                rating: service.rating || 0,
-                serviceType: this.getFinancialServiceType(serviceKey),
-                servicesOffered: this.getFinancialServices(serviceKey),
-                atmAvailable: serviceKey === 'atm' || serviceKey === 'bank',
-                currencies: ['INR'],
-                accessibleHours: this.getAccessibleHours(serviceKey)
-              };
-              
-              services.push(financialService);
-            }
-          } catch (serviceError) {
-            console.warn(`Failed to get ${serviceKey} services:`, serviceError.message);
-          }
-        }
-      }
-      
-      return {
-        total: services.length,
-        banks: services.filter(s => s.serviceType === 'bank').length,
-        atms: services.filter(s => s.serviceType === 'atm').length,
-        postOffices: services.filter(s => s.serviceType === 'post_office').length,
-        averageDistance: this.calculateAverageDistance(services),
-        coverage: this.assessCoverage(services, route.totalDistance)
-      };
-      
-    } catch (error) {
-      console.error('Financial services collection failed:', error);
-      throw error;
-    }
-  }
-
-  // 9. TRANSPORTATION HUBS
-  async collectTransportationHubs(route) {
-    try {
-      console.log('🚌 Collecting transportation hubs...');
-      
-      const hubs = [];
-      const routeSegments = this.createRouteSegments(route.routePoints, 8);
-      
-      for (const segment of routeSegments) {
-        for (const [serviceKey, config] of Object.entries(this.serviceCategories.transportation)) {
-          try {
-            const nearbyHubs = await apiService.findNearbyPlaces(
-              segment.latitude,
-              segment.longitude,
-              serviceKey,
-              config.radius
-            );
-            
-            for (const hub of nearbyHubs.slice(0, 2)) {
-              const distanceFromStart = this.calculateDistanceFromStart(route.routePoints, hub);
-              const distanceFromEnd = route.totalDistance - distanceFromStart;
-              const distanceFromRoute = this.calculateDistanceFromRoute(route.routePoints, hub);
-              
-              const hubDetails = await this.getPlaceDetails(hub.placeId);
-              
-              const transportationHub = {
-                routeId: route._id,
-                serviceType: 'transport',
-                name: hub.name,
-                latitude: hub.latitude,
-                longitude: hub.longitude,
-                phoneNumber: hubDetails.phoneNumber || 'Not available',
-                address: hubDetails.address || hub.vicinity,
-                operatingHours: hubDetails.operatingHours || 'Transport hours',
-                distanceFromRouteKm: distanceFromRoute,
-                distanceFromStartKm: distanceFromStart,
-                distanceFromEndKm: distanceFromEnd,
-                priority: config.priority,
-                rating: hub.rating || 0,
-                hubType: this.getTransportationType(serviceKey),
-                transportModes: this.getTransportModes(serviceKey),
-                connectivity: this.assessConnectivity(serviceKey),
-                facilities: this.getTransportFacilities(serviceKey),
-                emergencyContact: hubDetails.phoneNumber || 'Not available'
-              };
-              
-              hubs.push(transportationHub);
-            }
-          } catch (serviceError) {
-            console.warn(`Failed to get ${serviceKey} hubs:`, serviceError.message);
-          }
-        }
-      }
-      
-      return {
-        total: hubs.length,
-        busStations: hubs.filter(h => h.hubType === 'bus_station').length,
-        trainStations: hubs.filter(h => h.hubType === 'train_station').length,
-        airports: hubs.filter(h => h.hubType === 'airport').length,
-        taxiStands: hubs.filter(h => h.hubType === 'taxi_stand').length,
-        averageDistance: this.calculateAverageDistance(hubs),
-        coverage: this.assessCoverage(hubs, route.totalDistance)
-      };
-      
-    } catch (error) {
-      console.error('Transportation hubs collection failed:', error);
-      throw error;
-    }
-  }
-
-  // 10. DETAILED TRAFFIC DATA COLLECTION
-  async collectDetailedTrafficData(route) {
-    try {
-      console.log('🚗 Collecting detailed traffic data...');
-      
-      const trafficPoints = [];
-      const routeSegments = this.createRouteSegments(route.routePoints, 25);
-      
-      for (const segment of routeSegments) {
-        try {
-          const trafficData = await apiService.getTrafficData(segment.latitude, segment.longitude);
-          
-          const traffic = new TrafficData({
-            routeId: route._id,
-            latitude: segment.latitude,
-            longitude: segment.longitude,
-            peakHourTrafficCount: Math.round(trafficData.currentSpeed * 10),
-            averageSpeedKmph: trafficData.currentSpeed,
-            congestionLevel: this.determineCongestionLevel(trafficData),
-            bottleneckCauses: this.identifyBottlenecks(trafficData),
-            alternativeRoutesAvailable: this.checkAlternativeRoutes(segment),
-            riskScore: Math.max(1, this.calculateTrafficRiskScore(trafficData)),
-            measurementTime: new Date(),
-            distanceFromStartKm: this.calculateDistanceFromStart(route.routePoints, segment),
-            speedLimit: this.estimateSpeedLimit(segment),
-            roadType: this.determineRoadType(segment),
-            trafficLights: this.estimateTrafficLights(segment),
-            tollPoints: this.identifyTollPoints(segment),
-            constructionZones: this.identifyConstructionZones(segment)
-          });
-          
-          await traffic.save();
-          trafficPoints.push(traffic);
-          
-        } catch (trafficError) {
-          console.warn('Failed to get traffic for segment:', trafficError.message);
-        }
-      }
-      
-      return {
-        total: trafficPoints.length,
-        averageSpeed: trafficPoints.length > 0 ? 
-          trafficPoints.reduce((sum, t) => sum + t.averageSpeedKmph, 0) / trafficPoints.length : 0,
-        congestionAreas: trafficPoints.filter(t => ['heavy', 'severe'].includes(t.congestionLevel)).length,
-        averageRisk: trafficPoints.length > 0 ? 
-          trafficPoints.reduce((sum, t) => sum + t.riskScore, 0) / trafficPoints.length : 0,
-        tollPoints: trafficPoints.filter(t => t.tollPoints > 0).length,
-        constructionZones: trafficPoints.filter(t => t.constructionZones > 0).length
-      };
-      
-    } catch (error) {
-      console.error('Detailed traffic data collection failed:', error);
-      throw error;
-    }
-  }
-
-  // 11. ENHANCED ROAD CONDITIONS
-  async collectEnhancedRoadConditions(route) {
-    try {
-      console.log('🛣️ Collecting enhanced road conditions...');
-      
-      const roadConditions = [];
-      const routeSegments = this.createRouteSegments(route.routePoints, 30);
-      
-      for (const segment of routeSegments) {
-        try {
-          const roadQuality = this.assessDetailedRoadQuality(segment, route);
-          
-          const roadCondition = new RoadCondition({
-            routeId: route._id,
-            latitude: segment.latitude,
-            longitude: segment.longitude,
-            roadType: this.determineDetailedRoadType(route.majorHighways, segment),
-            surfaceQuality: roadQuality.surface,
-            widthMeters: roadQuality.width,
-            laneCount: roadQuality.lanes,
-            hasPotholes: roadQuality.potholes,
-            underConstruction: roadQuality.construction,
-            riskScore: roadQuality.riskScore,
-            dataSource: 'ENHANCED_ROUTE_ANALYSIS',
-            distanceFromStartKm: this.calculateDistanceFromStart(route.routePoints, segment),
-            shoulderWidth: roadQuality.shoulderWidth,
-            medianPresent: roadQuality.median,
-            lightingQuality: roadQuality.lighting,
-            drainageQuality: roadQuality.drainage,
-            bridgesCulverts: roadQuality.bridges,
-            slopeGradient: roadQuality.slope
-          });
-          
-          await roadCondition.save();
-          roadConditions.push(roadCondition);
-          
-        } catch (roadError) {
-          console.warn('Failed to assess road condition for segment:', roadError.message);
-        }
-      }
-      
-      return {
-        total: roadConditions.length,
-        averageRisk: roadConditions.reduce((sum, r) => sum + r.riskScore, 0) / roadConditions.length || 0,
-        poorConditions: roadConditions.filter(r => ['poor', 'critical'].includes(r.surfaceQuality)).length,
-        constructionZones: roadConditions.filter(r => r.underConstruction).length,
-        potholeAreas: roadConditions.filter(r => r.hasPotholes).length,
-        bridgesCulverts: roadConditions.filter(r => r.bridgesCulverts > 0).length
-      };
-      
-    } catch (error) {
-      console.error('Enhanced road conditions collection failed:', error);
-      throw error;
-    }
-  }
-
-  // 12. COMPREHENSIVE ACCIDENT-PRONE AREAS
-  async collectAccidentProneAreas(route) {
-  try {
-    console.log('🚨 Collecting REAL accident data from traffic APIs...');
-    
-    // Use the enhanced accident data service
-    const accidentDataService = require('./accidentDataService');
-    const realAccidentResults = await accidentDataService.collectRealAccidentProneAreas(route);
-    
-    // Validate we got real data, not fallback
-    if (realAccidentResults.total === 0 && realAccidentResults.apiStatus) {
-      const availableAPIs = Object.values(realAccidentResults.apiStatus)
-        .filter(status => status === 'CONFIGURED').length;
-      
-      if (availableAPIs === 0) {
-        throw new Error('No accident data APIs configured - cannot collect real data');
-      }
-    }
-    
-    return {
-      total: realAccidentResults.total,
-      bySource: realAccidentResults.bySource,
-      highRiskAreas: realAccidentResults.highRiskAreas,
-      averageRisk: realAccidentResults.averageRisk,
-      dataQuality: realAccidentResults.total > 0 ? 'real' : 'api_no_data',
-      confidence: realAccidentResults.total > 0 ? 0.9 : 0.0,
-      apiIntegration: realAccidentResults.apiStatus
-    };
-    
-  } catch (error) {
-    console.error('Real accident data collection failed:', error);
-    
-    // NO FALLBACK TO MOCK DATA
-    throw new Error(`Real accident data collection failed: ${error.message}`);
-  }
-}
-
-  // Additional helper methods for enhanced functionality
-
-  getInstitutionType(serviceKey) {
-    const types = {
-      'school': 'school',
-      'university': 'university',
-      'college': 'college'
-    };
-    return types[serviceKey] || 'educational';
-  }
-
-  estimateStudentCapacity(serviceKey) {
-    const capacities = {
-      'school': Math.floor(Math.random() * 1000) + 500,
-      'university': Math.floor(Math.random() * 10000) + 5000,
-      'college': Math.floor(Math.random() * 5000) + 2000
-    };
-    return capacities[serviceKey] || 1000;
-  }
-
-  getEducationalSafetyFeatures() {
-    return ['Security Guards', 'CCTV', 'Emergency Exits', 'Fire Safety', 'Medical Room'];
-  }
-
-  getStopType(serviceKey) {
-    const types = {
-      'restaurant': 'restaurant',
-      'food': 'restaurant',
-      'meal_delivery': 'restaurant',
-      'cafe': 'cafe',
-      'lodging': 'lodging'
-    };
-    return types[serviceKey] || 'food_service';
-  }
-
-  getCuisineType(name) {
-    if (name.toLowerCase().includes('chinese')) return 'Chinese';
-    if (name.toLowerCase().includes('pizza')) return 'Italian';
-    if (name.toLowerCase().includes('dhaba')) return 'Indian';
-    if (name.toLowerCase().includes('mc') || name.toLowerCase().includes('kfc')) return 'Fast Food';
-    return 'Multi-cuisine';
-  }
-
-  getFoodAmenities(serviceKey) {
-    const amenities = {
-      'restaurant': ['Dining', 'Parking', 'Restrooms', 'AC'],
-      'lodging': ['Rooms', 'Restaurant', 'Parking', 'WiFi', 'AC'],
-      'cafe': ['Coffee', 'Snacks', 'WiFi', 'Seating']
-    };
-    return amenities[serviceKey] || ['Basic Facilities'];
-  }
-
-  estimateParkingAvailability(serviceKey) {
-    const parking = {
-      'restaurant': true,
-      'lodging': true,
-      'cafe': Math.random() > 0.5
-    };
-    return parking[serviceKey] || false;
-  }
-
-  assessTruckFriendliness(serviceKey) {
-    return serviceKey === 'lodging' || Math.random() > 0.7;
-  }
-
-  getRestFacilities(serviceKey) {
-    const facilities = {
-      'restaurant': ['Restrooms', 'Seating'],
-      'lodging': ['Rooms', 'Restrooms', 'Common Area'],
-      'cafe': ['Seating', 'Restrooms']
-    };
-    return facilities[serviceKey] || ['Basic Facilities'];
-  }
-
   calculateTrafficRiskScore(trafficData) {
     const speedRatio = trafficData.currentSpeed / (trafficData.freeFlowSpeed || 60);
     const riskScore = Math.round((1 - speedRatio) * 10);
@@ -1449,175 +1160,71 @@ extractAmenities(place) {
   }
 
   determineCongestionLevel(trafficData) {
-    const ratio = trafficData.currentSpeed / (trafficData.freeFlowSpeed || 60);
-    if (ratio > 0.8) return 'free_flow';
-    if (ratio > 0.6) return 'light';
-    if (ratio > 0.4) return 'moderate';
-    if (ratio > 0.2) return 'heavy';
-    return 'severe';
+    if (!trafficData.jamFactor) {
+      const ratio = trafficData.currentSpeed / (trafficData.freeFlowSpeed || 60);
+      if (ratio > 0.8) return 'free_flow';
+      if (ratio > 0.6) return 'light';
+      if (ratio > 0.4) return 'moderate';
+      if (ratio > 0.2) return 'heavy';
+      return 'severe';
+    }
+    
+    if (trafficData.jamFactor >= 8) return 'severe';
+    if (trafficData.jamFactor >= 6) return 'heavy';
+    if (trafficData.jamFactor >= 4) return 'moderate';
+    if (trafficData.jamFactor >= 2) return 'light';
+    return 'free_flow';
   }
 
   identifyBottlenecks(trafficData) {
     const bottlenecks = [];
     if (trafficData.currentSpeed < 20) bottlenecks.push('low_speed_zone');
     if (trafficData.roadClosure) bottlenecks.push('road_closure');
+    if (trafficData.jamFactor > 7) bottlenecks.push('heavy_congestion');
     return bottlenecks;
   }
 
-  // Method to analyze comprehensive accident risk factors
-  // async analyzeAccidentRiskFactors(segment, route) {
-  //   const factors = {
-  //     overallRisk: 5,
-  //     estimatedFrequency: Math.floor(Math.random() * 10) + 1,
-  //     severity: Math.random() > 0.7 ? 'major' : 'minor',
-  //     accidentTypes: ['collision', 'overtaking'],
-  //     contributingFactors: ['traffic_density', 'road_conditions'],
-  //     timeRisks: { night: 7, day: 4, peak: 6 },
-  //     weatherRisk: 6,
-  //     infrastructureRisk: 5,
-  //     trafficRisk: 6
-  //   };
-
-  //   // Enhance risk based on route characteristics
-  //   if (route.terrain === 'hilly') {
-  //     factors.overallRisk += 2;
-  //     factors.contributingFactors.push('steep_slopes');
-  //   }
-
-  //   if (route.terrain === 'rural') {
-  //     factors.overallRisk += 1;
-  //     factors.contributingFactors.push('limited_lighting');
-  //   }
-
-  //   return factors;
-  // }
-
-   getFinancialServiceType(serviceKey) {
-    const types = {
-      'bank': 'bank',
-      'atm': 'atm',
-      'post_office': 'post_office'
-    };
-    return types[serviceKey] || 'financial';
-  }
-
-  getFinancialServices(serviceKey) {
-    const services = {
-      'bank': ['Cash Withdrawal', 'Deposits', 'Money Transfer', 'Account Services'],
-      'atm': ['Cash Withdrawal', 'Balance Inquiry', 'Mini Statement'],
-      'post_office': ['Mail Services', 'Money Order', 'Savings Account', 'Insurance']
-    };
-    return services[serviceKey] || ['Basic Services'];
-  }
-
-  getAccessibleHours(serviceKey) {
-    const hours = {
-      'bank': '10:00 AM - 4:00 PM',
-      'atm': '24/7',
-      'post_office': '10:00 AM - 5:00 PM'
-    };
-    return hours[serviceKey] || 'Business Hours';
-  }
-
-  // Transportation Helper Methods
-  getTransportationType(serviceKey) {
-    const types = {
-      'bus_station': 'bus_station',
-      'train_station': 'train_station',
-      'airport': 'airport',
-      'taxi_stand': 'taxi_stand'
-    };
-    return types[serviceKey] || 'transport';
-  }
-
-  getTransportModes(serviceKey) {
-    const modes = {
-      'bus_station': ['Local Bus', 'Interstate Bus', 'Private Bus'],
-      'train_station': ['Local Train', 'Express Train', 'Passenger Train'],
-      'airport': ['Domestic Flights', 'International Flights'],
-      'taxi_stand': ['Local Taxi', 'Auto Rickshaw', 'Cab Services']
-    };
-    return modes[serviceKey] || ['General Transport'];
-  }
-
-  assessConnectivity(serviceKey) {
-    const connectivity = {
-      'bus_station': 'Regional',
-      'train_station': 'National',
-      'airport': 'International',
-      'taxi_stand': 'Local'
-    };
-    return connectivity[serviceKey] || 'Local';
-  }
-
-  getTransportFacilities(serviceKey) {
-    const facilities = {
-      'bus_station': ['Waiting Area', 'Ticket Counter', 'Restrooms', 'Food Court'],
-      'train_station': ['Platform', 'Booking Office', 'Waiting Room', 'Parking'],
-      'airport': ['Terminal', 'Check-in', 'Security', 'Lounges', 'Duty Free'],
-      'taxi_stand': ['Waiting Area', 'Fare Chart', 'Phone Booking']
-    };
-    return facilities[serviceKey] || ['Basic Facilities'];
-  }
-
-  // Traffic Analysis Helper Methods
   checkAlternativeRoutes(segment) {
-    // Mock implementation - would use routing APIs to check alternative paths
     return Math.random() > 0.6;
   }
 
   estimateSpeedLimit(segment) {
-    // Estimate speed limit based on area type and coordinates
     const speedLimits = [40, 50, 60, 80, 100];
     return speedLimits[Math.floor(Math.random() * speedLimits.length)];
   }
 
   determineRoadType(segment) {
-    // Determine road type based on segment characteristics
     const roadTypes = ['highway', 'arterial', 'collector', 'local'];
     return roadTypes[Math.floor(Math.random() * roadTypes.length)];
   }
 
   estimateTrafficLights(segment) {
-    // Estimate number of traffic lights in the segment area
     return Math.floor(Math.random() * 3);
   }
 
   identifyTollPoints(segment) {
-    // Identify potential toll points
     return Math.random() > 0.8 ? 1 : 0;
   }
 
   identifyConstructionZones(segment) {
-    // Identify construction zones
     return Math.random() > 0.9 ? 1 : 0;
   }
 
-  // Enhanced Road Condition Assessment
   assessDetailedRoadQuality(segment, route) {
     let riskScore = 5;
     
-    // Adjust based on route characteristics
     if (route.terrain === 'hilly') riskScore += 1;
     if (route.terrain === 'rural') riskScore += 2;
     if (route.majorHighways?.some(h => h.startsWith('NH'))) riskScore -= 1;
     
-    const roadQuality = {
+    return {
       surface: riskScore > 6 ? 'poor' : riskScore > 4 ? 'fair' : 'good',
       width: route.majorHighways?.length > 0 ? 7.5 : 3.5,
       lanes: route.majorHighways?.length > 0 ? 2 : 1,
       potholes: riskScore > 6,
       construction: Math.random() > 0.9,
-      riskScore: Math.max(1, Math.min(10, riskScore)),
-      shoulderWidth: Math.random() * 2 + 1, // 1-3 meters
-      median: route.majorHighways?.length > 0 && Math.random() > 0.5,
-      lighting: this.assessLightingQuality(segment),
-      drainage: this.assessDrainageQuality(riskScore),
-      bridges: Math.random() > 0.8 ? 1 : 0,
-      slope: this.calculateSlopeGradient(segment, route)
+      riskScore: Math.max(1, Math.min(10, riskScore))
     };
-    
-    return roadQuality;
   }
 
   determineDetailedRoadType(majorHighways, segment) {
@@ -1627,90 +1234,11 @@ extractAmenities(place) {
     return 'district';
   }
 
-  assessLightingQuality(segment) {
-    // Assess lighting quality based on area type
-    const lightingLevels = ['poor', 'fair', 'good', 'excellent'];
-    return lightingLevels[Math.floor(Math.random() * lightingLevels.length)];
-  }
-
-  assessDrainageQuality(riskScore) {
-    // Assess drainage quality based on risk score
-    if (riskScore > 7) return 'poor';
-    if (riskScore > 5) return 'fair';
-    return 'good';
-  }
-
-  calculateSlopeGradient(segment, route) {
-    // Calculate slope gradient for hilly terrain
-    if (route.terrain === 'hilly') {
-      return Math.random() * 8 + 2; // 2-10% gradient
-    }
-    return Math.random() * 3; // 0-3% gradient for flat terrain
-  }
-
-  // 13. COMPREHENSIVE NETWORK COVERAGE ANALYSIS
-  async collectNetworkCoverage(route) {
-    try {
-      console.log('📶 Analyzing comprehensive network coverage...');
-      
-      const coverageAnalysis = {
-        routeId: route._id,
-        totalDistance: route.totalDistance,
-        terrain: route.terrain,
-        estimatedDeadZones: this.estimateDeadZones(route),
-        coverageQuality: this.assessOverallCoverage(route),
-        riskScore: this.calculateNetworkRiskScore(route),
-        cellTowerDensity: this.estimateCellTowerDensity(route),
-        emergencyCommRisk: this.assessEmergencyCommRisk(route),
-        alternativeCommMethods: this.getAlternativeCommMethods(),
-        coverageByOperator: this.estimateCoverageByOperator(route),
-        dataSpeedEstimate: this.estimateDataSpeeds(route),
-        roamingConsiderations: this.getRoamingConsiderations(route)
-      };
-      
-      return coverageAnalysis;
-      
-    } catch (error) {
-      console.error('Network coverage analysis failed:', error);
-      throw error;
-    }
-  }
-
-  // 14. COMPREHENSIVE SECURITY ANALYSIS
-  async collectSecurityAnalysis(route) {
-    try {
-      console.log('🔒 Conducting comprehensive security analysis...');
-      
-      const securityAnalysis = {
-        routeId: route._id,
-        overallSecurityRisk: this.calculateOverallSecurityRisk(route),
-        crimeRiskAreas: this.identifyCrimeRiskAreas(route),
-        isolatedAreas: this.identifyIsolatedAreas(route),
-        lightingAssessment: this.assessRouteLighting(route),
-        emergencyResponseTime: this.assessEmergencyResponseCapability(route),
-        securityRecommendations: this.generateSecurityRecommendations(route),
-        checkpoints: this.identifySecurityCheckpoints(route),
-        safeHavens: this.identifySafeHavens(route),
-        nightTravelRisk: this.assessNightTravelRisk(route),
-        crimePrevention: this.getCrimePreventionMeasures()
-      };
-      
-      return securityAnalysis;
-      
-    } catch (error) {
-      console.error('Security analysis failed:', error);
-      throw error;
-    }
-  }
-
-  // Network Coverage Helper Methods
+  // Network Coverage Methods
   estimateDeadZones(route) {
-    let deadZones = Math.floor(route.totalDistance / 50); // Base estimate
-    
+    let deadZones = Math.floor(route.totalDistance / 50);
     if (route.terrain === 'hilly') deadZones += 2;
     if (route.terrain === 'rural') deadZones += 1;
-    if (route.terrain === 'urban') deadZones = Math.max(0, deadZones - 1);
-    
     return deadZones;
   }
 
@@ -1722,23 +1250,15 @@ extractAmenities(place) {
   }
 
   calculateNetworkRiskScore(route) {
-    let risk = 4; // Base risk
-    
+    let risk = 4;
     if (route.terrain === 'rural') risk += 2;
     if (route.terrain === 'hilly') risk += 3;
     if (route.totalDistance > 200) risk += 1;
-    if (route.terrain === 'urban') risk -= 1;
-    
     return Math.max(1, Math.min(10, risk));
   }
 
   estimateCellTowerDensity(route) {
-    const densities = {
-      'urban': 'high',
-      'rural': 'low',
-      'hilly': 'very_low',
-      'mixed': 'medium'
-    };
+    const densities = { 'urban': 'high', 'rural': 'low', 'hilly': 'very_low', 'mixed': 'medium' };
     return densities[route.terrain] || 'medium';
   }
 
@@ -1749,59 +1269,22 @@ extractAmenities(place) {
     return 'low';
   }
 
-  getAlternativeCommMethods() {
-    return ['Satellite Phone', 'Two-way Radio', 'Emergency Beacons', 'Landline Phones'];
-  }
-
   estimateCoverageByOperator(route) {
+    const baseCoverage = route.terrain === 'urban' ? 95 : route.terrain === 'rural' ? 70 : 60;
     return {
-      'Airtel': this.getOperatorCoverage(route, 'airtel'),
-      'Jio': this.getOperatorCoverage(route, 'jio'),
-      'Vi': this.getOperatorCoverage(route, 'vi'),
-      'BSNL': this.getOperatorCoverage(route, 'bsnl')
+      'Airtel': Math.max(30, baseCoverage + (Math.random() * 20 - 10)),
+      'Jio': Math.max(30, baseCoverage + (Math.random() * 20 - 10)),
+      'Vi': Math.max(30, baseCoverage + (Math.random() * 20 - 10)),
+      'BSNL': Math.max(30, baseCoverage + (Math.random() * 20 - 10))
     };
   }
 
-  getOperatorCoverage(route, operator) {
-    // Mock operator coverage based on route characteristics
-    const baseCoverage = route.terrain === 'urban' ? 95 : 
-                        route.terrain === 'rural' ? 70 : 60;
-    return Math.max(30, baseCoverage + (Math.random() * 20 - 10));
-  }
-
-  estimateDataSpeeds(route) {
-    const speeds = {
-      'urban': '4G+ (50-100 Mbps)',
-      'rural': '3G/4G (5-25 Mbps)',
-      'hilly': '2G/3G (1-10 Mbps)',
-      'mixed': '3G/4G (10-50 Mbps)'
-    };
-    return speeds[route.terrain] || '3G/4G (10-30 Mbps)';
-  }
-
-  getRoamingConsiderations(route) {
-    return {
-      'stateChanges': this.identifyStateBoundaries(route),
-      'internationalBorders': false, // Assuming domestic route
-      'roamingCharges': 'Check with operator for interstate charges',
-      'emergencyNumbers': ['112', '100', '101', '108']
-    };
-  }
-
-  identifyStateBoundaries(route) {
-    // Mock state boundary detection
-    return route.totalDistance > 100 ? ['Possible state boundary crossing'] : [];
-  }
-
-  // Security Analysis Helper Methods
+  // Security Analysis Methods
   calculateOverallSecurityRisk(route) {
-    let risk = 4; // Base risk
-    
+    let risk = 4;
     if (route.terrain === 'rural') risk += 2;
     if (route.terrain === 'urban') risk += 1;
     if (route.totalDistance > 300) risk += 1;
-    if (route.terrain === 'hilly') risk += 1;
-    
     return Math.max(1, Math.min(10, risk));
   }
 
@@ -1810,7 +1293,7 @@ extractAmenities(place) {
     const segmentCount = Math.floor(route.totalDistance / 25);
     
     for (let i = 0; i < segmentCount; i++) {
-      if (Math.random() > 0.8) { // 20% chance of risk area
+      if (Math.random() > 0.8) {
         riskAreas.push({
           location: `${25 * i}-${25 * (i + 1)}km from start`,
           riskLevel: Math.random() > 0.5 ? 'medium' : 'high',
@@ -1819,13 +1302,11 @@ extractAmenities(place) {
         });
       }
     }
-    
     return riskAreas;
   }
 
   identifyIsolatedAreas(route) {
     const isolatedAreas = [];
-    
     if (route.terrain === 'rural' || route.terrain === 'hilly') {
       const areaCount = Math.floor(route.totalDistance / 40);
       for (let i = 0; i < areaCount; i++) {
@@ -1836,36 +1317,23 @@ extractAmenities(place) {
         });
       }
     }
-    
     return isolatedAreas;
   }
 
   assessRouteLighting(route) {
-    const lighting = {
-      'urban': 'good',
-      'rural': 'poor',
-      'hilly': 'very_poor',
-      'mixed': 'fair'
-    };
-    
+    const lighting = { 'urban': 'good', 'rural': 'poor', 'hilly': 'very_poor', 'mixed': 'fair' };
     return {
       overallQuality: lighting[route.terrain] || 'fair',
       wellLitSections: route.terrain === 'urban' ? 80 : 20,
-      poorlyLitSections: route.terrain === 'rural' ? 70 : 30,
-      noLightingSections: route.terrain === 'hilly' ? 50 : 10
+      poorlyLitSections: route.terrain === 'rural' ? 70 : 30
     };
   }
 
   assessEmergencyResponseCapability(route) {
     const responseTime = route.terrain === 'urban' ? '10-15 minutes' :
-                        route.terrain === 'rural' ? '20-45 minutes' :
-                        '30-60 minutes';
-    
+                        route.terrain === 'rural' ? '20-45 minutes' : '30-60 minutes';
     return {
       averageResponseTime: responseTime,
-      policeResponse: responseTime,
-      medicalResponse: responseTime,
-      fireResponse: responseTime,
       communicationReliability: route.terrain === 'urban' ? 'high' : 'medium'
     };
   }
@@ -1873,8 +1341,7 @@ extractAmenities(place) {
   generateSecurityRecommendations(route) {
     const recommendations = [
       'Maintain constant communication with control room',
-      'Carry emergency contact numbers',
-      'Keep vehicle doors locked while driving'
+      'Carry emergency contact numbers'
     ];
     
     if (route.terrain === 'rural') {
@@ -1882,86 +1349,28 @@ extractAmenities(place) {
       recommendations.push('Carry extra fuel and emergency supplies');
     }
     
-    if (route.terrain === 'hilly') {
-      recommendations.push('Use convoy travel for added security');
-      recommendations.push('Inform authorities about travel plans');
-    }
-    
     if (route.totalDistance > 200) {
       recommendations.push('Plan rest stops at secure locations');
-      recommendations.push('Carry satellite communication device');
     }
     
     return recommendations;
   }
 
-  identifySecurityCheckpoints(route) {
-    const checkpoints = [];
-    const checkpointCount = Math.floor(route.totalDistance / 100);
-    
-    for (let i = 0; i < checkpointCount; i++) {
-      checkpoints.push({
-        location: `${100 * i}km from start`,
-        type: Math.random() > 0.5 ? 'Police Checkpoint' : 'Toll Plaza',
-        operatingHours: '24/7',
-        contact: '+91-100'
-      });
-    }
-    
-    return checkpoints;
-  }
-
-  identifySafeHavens(route) {
-    const safeHavens = [];
-    const havenCount = Math.floor(route.totalDistance / 50);
-    
-    for (let i = 0; i < havenCount; i++) {
-      safeHavens.push({
-        location: `${50 * i}km from start`,
-        type: Math.random() > 0.5 ? 'Police Station' : 'Government Office',
-        facilities: ['Security', 'Communication', 'Rest Area'],
-        contact: '+91-100'
-      });
-    }
-    
-    return safeHavens;
-  }
-
   assessNightTravelRisk(route) {
-    let nightRisk = 5; // Base risk
-    
+    let nightRisk = 5;
     if (route.terrain === 'rural') nightRisk += 3;
     if (route.terrain === 'hilly') nightRisk += 2;
-    if (route.terrain === 'urban') nightRisk -= 1;
     if (route.totalDistance > 200) nightRisk += 1;
     
     return {
       riskScore: Math.max(1, Math.min(10, nightRisk)),
-      riskLevel: nightRisk > 7 ? 'high' : nightRisk > 5 ? 'medium' : 'low',
-      recommendations: nightRisk > 6 ? ['Avoid night travel', 'Use convoy', 'Extra security'] : 
-                      ['Normal precautions', 'Maintain communication']
+      riskLevel: nightRisk > 7 ? 'high' : nightRisk > 5 ? 'medium' : 'low'
     };
   }
 
-  getCrimePreventionMeasures() {
-    return [
-      'Install GPS tracking systems',
-      'Use two-way radio communication',
-      'Carry emergency alert devices',
-      'Follow designated routes only',
-      'Report suspicious activities immediately',
-      'Keep emergency contact numbers accessible',
-      'Maintain fuel levels above 50%',
-      'Avoid isolated stops',
-      'Travel in groups when possible'
-    ];
-  }
-
-  // Final utility method for processing results
   processResult(result) {
     return result.status === 'fulfilled' ? result.value : { error: result.reason?.message };
   }
-
 }
 
-module.exports = new EnhancedDataCollectionService();   
+module.exports = new UnifiedDataCollectionService();
