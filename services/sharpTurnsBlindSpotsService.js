@@ -151,6 +151,7 @@ class EnhancedSharpTurnsBlindSpotsService {
   // CRITICAL SHARP TURNS ANALYSIS - COMPLETELY FIXED
   // ============================================================================
 
+  // EXISTING METHOD - UPDATE THE GPS COORDINATES PART:
   async analyzeCriticalSharpTurns(route) {
     try {
       const criticalTurns = [];
@@ -173,11 +174,15 @@ class EnhancedSharpTurnsBlindSpotsService {
                 turnAnalysis.angle >= this.TURN_THRESHOLDS.MIN_ANGLE) {
               
               try {
-                // Create sharp turn record with proper validation
+                // ✅ FIXED: Create sharp turn record with GPS precision
                 const sharpTurn = new SharpTurn({
                   routeId: route._id,
-                  latitude: this.validateNumber(routePoints[i].latitude, 0),
-                  longitude: this.validateNumber(routePoints[i].longitude, 0),
+                  
+                  // 🔧 FIXED: Use GPS precision for coordinates
+                  latitude: this.validateGPSCoordinate(routePoints[i].latitude, 0),
+                  longitude: this.validateGPSCoordinate(routePoints[i].longitude, 0),
+                  
+                  // Other fields with standard precision
                   distanceFromStartKm: this.validateNumber(routePoints[i].distanceFromStart, 0),
                   turnAngle: this.validateNumber(turnAnalysis.angle, 0),
                   turnDirection: this.validateTurnDirection(turnAnalysis.direction),
@@ -202,7 +207,7 @@ class EnhancedSharpTurnsBlindSpotsService {
                 await sharpTurn.save();
                 criticalTurns.push(sharpTurn);
                 
-                console.log(`📍 Sharp turn saved: ${turnAnalysis.angle.toFixed(1)}° ${turnAnalysis.direction}, risk ${turnRiskData.riskScore}`);
+                console.log(`📍 FIXED Sharp turn saved with GPS precision: ${sharpTurn.latitude}, ${sharpTurn.longitude} (${turnAnalysis.angle.toFixed(1)}°)`);
                 
               } catch (saveError) {
                 console.error('Failed to save sharp turn:', saveError.message);
@@ -236,9 +241,44 @@ class EnhancedSharpTurnsBlindSpotsService {
   // ============================================================================
 
   // FIXED: Number validation helper
-  validateNumber(value, defaultValue = 0) {
+   validateNumber(value, defaultValue) {
+    // Set default value if not provided
+    if (typeof defaultValue === 'undefined') {
+      defaultValue = 0;
+    }
+    
     if (typeof value === 'number' && !isNaN(value) && isFinite(value)) {
       return Math.round(value * 100) / 100;
+    }
+    return defaultValue;
+  }
+  // NEW: GPS coordinate validation with high precision
+  validateGPSCoordinate(value, defaultValue) {
+    // Set default value if not provided
+    if (typeof defaultValue === 'undefined') {
+      defaultValue = 0;
+    }
+    
+    if (typeof value === 'number' && !isNaN(value) && isFinite(value)) {
+      // Preserve 6 decimal places for GPS coordinates (~1 meter accuracy)
+      return Math.round(value * 1000000) / 1000000;
+    }
+    return defaultValue;
+  }
+
+  // NEW: Enhanced number validation with precision control
+  validateNumberWithPrecision(value, defaultValue, precision) {
+    // Set default values if not provided
+    if (typeof defaultValue === 'undefined') {
+      defaultValue = 0;
+    }
+    if (typeof precision === 'undefined') {
+      precision = 2;
+    }
+    
+    if (typeof value === 'number' && !isNaN(value) && isFinite(value)) {
+      const multiplier = Math.pow(10, precision);
+      return Math.round(value * multiplier) / multiplier;
     }
     return defaultValue;
   }

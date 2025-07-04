@@ -1036,8 +1036,12 @@ class RealBlindSpotCalculator {
 
       const blindSpotData = {
         routeId: data.routeId,
-        latitude: this.validateNumber(data.coordinates.latitude, 0),
-        longitude: this.validateNumber(data.coordinates.longitude, 0),
+        
+        // 🔧 FIXED: Use GPS precision for coordinates
+        latitude: this.validateGPSCoordinate(data.coordinates.latitude, 0),
+        longitude: this.validateGPSCoordinate(data.coordinates.longitude, 0),
+        
+        // Other fields with standard precision
         distanceFromStartKm: this.validateNumber(data.coordinates.distanceFromStart, 0),
         spotType: data.spotType || 'crest',
         visibilityDistance: this.validateNumber(data.visibilityDistance, 100),
@@ -1089,7 +1093,7 @@ class RealBlindSpotCalculator {
       blindSpot.generateSatelliteViewLink();
       
       const savedBlindSpot = await blindSpot.save();
-      console.log(`💾 REAL blind spot saved: ${savedBlindSpot.spotType} at ${savedBlindSpot.latitude}, ${savedBlindSpot.longitude} (risk: ${savedBlindSpot.riskScore})`);
+      console.log(`💾 FIXED blind spot saved: ${savedBlindSpot.spotType} at ${savedBlindSpot.latitude}, ${savedBlindSpot.longitude} (risk: ${savedBlindSpot.riskScore})`);
       
       return savedBlindSpot;
 
@@ -1099,18 +1103,35 @@ class RealBlindSpotCalculator {
       return null;
     }
   }
-
   // ============================================================================
   // UTILITY AND VALIDATION METHODS
   // ============================================================================
 
-  validateNumber(value, defaultValue) {
+validateNumber(value, defaultValue) {
+    // Set default value if not provided
+    if (typeof defaultValue === 'undefined') {
+      defaultValue = 0;
+    }
+    
     if (typeof value === 'number' && !isNaN(value) && isFinite(value)) {
       return Math.round(value * 100) / 100;
     }
     return defaultValue;
   }
 
+  // NEW: GPS coordinate validation with high precision
+  validateGPSCoordinate(value, defaultValue) {
+    // Set default value if not provided
+    if (typeof defaultValue === 'undefined') {
+      defaultValue = 0;
+    }
+    
+    if (typeof value === 'number' && !isNaN(value) && isFinite(value)) {
+      // Preserve 6 decimal places for GPS coordinates (~1 meter accuracy)
+      return Math.round(value * 1000000) / 1000000;
+    }
+    return defaultValue;
+  }
   determineSeverityLevel(riskScore) {
     if (riskScore >= 8.5) return 'critical';
     if (riskScore >= 6.5) return 'significant';
