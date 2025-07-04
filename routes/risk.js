@@ -2,7 +2,7 @@
 // Purpose: Risk assessment and calculation endpoints
 
 const express = require('express');
-// const riskCalculationService = require('../services/riskCalculationService'); // Commented out for now
+const riskCalculationService = require('../services/riskCalculationService'); // Commented out for now
 const Route = require('../models/Route');
 const { auth } = require('../middleware/auth'); // FIXED: Added destructuring
 const logger = require('../utils/logger');

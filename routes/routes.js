@@ -8,7 +8,7 @@ const path = require('path');
 const { body, query } = require('express-validator');
 const routeController = require('../controllers/routeController');
 const { auth } = require('../middleware/auth');
-
+const logger = require('../utils/logger');
 const router = express.Router();
 
 // Configure multer for file uploads

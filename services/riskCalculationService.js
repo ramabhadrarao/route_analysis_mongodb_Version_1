@@ -7,6 +7,7 @@ const RoadCondition = require('../models/RoadCondition');
 const { AccidentProneArea, WeatherCondition, TrafficData } = require('../models/EnhancedModels');
 const EmergencyService = require('../models/EmergencyService');
 const logger = require('../utils/logger');
+const axios = require('axios'); // ✅ ADDED: Missing axios import
 
 class EnhancedRiskCalculationService {
   constructor() {
