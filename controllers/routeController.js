@@ -617,51 +617,35 @@ exports.recalculateRisk = async (req, res) => {
       });
     }
 
-    // TODO: Implement actual risk calculation service
-    // For now, return placeholder response
-    const mockRiskScore = {
-      roadConditions: Math.random() * 10,
-      accidentProne: Math.random() * 10,
-      sharpTurns: Math.random() * 10,
-      blindSpots: Math.random() * 10,
-      twoWayTraffic: Math.random() * 10,
-      trafficDensity: Math.random() * 10,
-      weatherConditions: Math.random() * 10,
-      emergencyServices: Math.random() * 10,
-      networkCoverage: Math.random() * 10,
-      amenities: Math.random() * 10,
-      securityIssues: Math.random() * 10,
-      totalWeightedScore: Math.random() * 10,
-      riskGrade: ['A', 'B', 'C', 'D', 'F'][Math.floor(Math.random() * 5)],
-      calculatedAt: new Date()
-    };
-
-    // Update route with new risk scores
+    // REAL RISK RECALCULATION - Replace mock implementation
+    const riskCalculationService = require('../services/riskCalculationService');
+    const realRiskResult = await riskCalculationService.calculateRouteRisk(req.params.id);
+    
+    // Update route with real calculated risk
     await Route.findByIdAndUpdate(req.params.id, {
-      riskScores: mockRiskScore,
-      riskLevel: mockRiskScore.totalWeightedScore > 8 ? 'CRITICAL' :
-                 mockRiskScore.totalWeightedScore > 6 ? 'HIGH' :
-                 mockRiskScore.totalWeightedScore > 4 ? 'MEDIUM' : 'LOW',
-      'metadata.lastCalculated': new Date()
+      riskScores: realRiskResult,
+      riskLevel: realRiskResult.riskLevel,
+      'metadata.lastCalculated': new Date(),
+      'metadata.calculationVersion': '2.0-real'
     });
 
     res.status(200).json({
       success: true,
-      message: 'Route risk recalculated successfully',
+      message: 'Route risk recalculated with real data',
       data: {
         routeId: route.routeId,
-        riskScores: mockRiskScore,
-        riskLevel: mockRiskScore.totalWeightedScore > 8 ? 'CRITICAL' :
-                   mockRiskScore.totalWeightedScore > 6 ? 'HIGH' :
-                   mockRiskScore.totalWeightedScore > 4 ? 'MEDIUM' : 'LOW'
+        riskScores: realRiskResult,
+        riskLevel: realRiskResult.riskLevel,
+        confidence: realRiskResult.confidenceLevel,
+        dataQuality: realRiskResult.dataQuality
       }
     });
 
   } catch (error) {
-    console.error('Recalculate risk error:', error);
+    console.error('Real risk recalculation error:', error);
     res.status(500).json({
       success: false,
-      message: 'Server error while recalculating risk'
+      message: 'Error recalculating risk with real data'
     });
   }
 };

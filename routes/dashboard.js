@@ -98,36 +98,20 @@ router.get('/statistics', async (req, res) => {
     const userId = req.user.id;
     const { timeframe = '30d' } = req.query;
     
-    // Calculate date range
+    // Calculate real date range
     const endDate = new Date();
     const startDate = new Date();
     
     switch (timeframe) {
-      case '7d':
-        startDate.setDate(endDate.getDate() - 7);
-        break;
-      case '30d':
-        startDate.setDate(endDate.getDate() - 30);
-        break;
-      case '90d':
-        startDate.setDate(endDate.getDate() - 90);
-        break;
-      case '1y':
-        startDate.setFullYear(endDate.getFullYear() - 1);
-        break;
-      default:
-        startDate.setDate(endDate.getDate() - 30);
+      case '7d': startDate.setDate(endDate.getDate() - 7); break;
+      case '30d': startDate.setDate(endDate.getDate() - 30); break;
+      case '90d': startDate.setDate(endDate.getDate() - 90); break;
+      case '1y': startDate.setFullYear(endDate.getFullYear() - 1); break;
+      default: startDate.setDate(endDate.getDate() - 30);
     }
     
-    // Routes created in timeframe
-    const routesInTimeframe = await Route.countDocuments({
-      userId,
-      createdAt: { $gte: startDate, $lte: endDate },
-      status: { $ne: 'deleted' }
-    });
-    
-    // Distance in timeframe
-    const distanceResult = await Route.aggregate([
+    // REAL DATA AGGREGATION - Replace mock implementation
+    const realRouteCreationTrend = await Route.aggregate([
       {
         $match: {
           userId: new mongoose.Types.ObjectId(userId),
@@ -137,38 +121,47 @@ router.get('/statistics', async (req, res) => {
       },
       {
         $group: {
-          _id: null,
-          totalDistance: { $sum: '$totalDistance' }
+          _id: {
+            year: { $year: '$createdAt' },
+            month: { $month: '$createdAt' },
+            day: { $dayOfMonth: '$createdAt' }
+          },
+          count: { $sum: 1 },
+          totalDistance: { $sum: '$totalDistance' },
+          avgRiskScore: { $avg: '$riskScores.totalWeightedScore' }
         }
-      }
+      },
+      { $sort: { '_id.year': 1, '_id.month': 1, '_id.day': 1 }}
     ]);
     
-    const totalDistanceInPeriod = distanceResult[0]?.totalDistance || 0;
-    
-    // Mock trend data
-    const routeCreationTrend = [
-      { date: '2024-12-01', count: 2, totalDistance: 1500 },
-      { date: '2024-12-15', count: 3, totalDistance: 2200 },
-      { date: '2024-12-30', count: 5, totalDistance: 3500 }
-    ];
+    // Format dates properly
+    const formattedTrend = realRouteCreationTrend.map(item => ({
+      date: `${item._id.year}-${String(item._id.month).padStart(2, '0')}-${String(item._id.day).padStart(2, '0')}`,
+      count: item.count,
+      totalDistance: Math.round(item.totalDistance),
+      avgRiskScore: Math.round((item.avgRiskScore || 0) * 100) / 100
+    }));
     
     res.status(200).json({
       success: true,
       data: {
         timeframe,
-        routeCreationTrend,
+        routeCreationTrend: formattedTrend, // REAL DATA
         summary: {
-          totalRoutesInPeriod: routesInTimeframe,
-          totalDistanceInPeriod: Math.round(totalDistanceInPeriod)
-        }
+          totalRoutesInPeriod: formattedTrend.reduce((sum, item) => sum + item.count, 0),
+          totalDistanceInPeriod: formattedTrend.reduce((sum, item) => sum + item.totalDistance, 0),
+          avgRiskScore: formattedTrend.reduce((sum, item) => sum + (item.avgRiskScore * item.count), 0) / 
+                       formattedTrend.reduce((sum, item) => sum + item.count, 0) || 0
+        },
+        dataSource: 'REAL_DATABASE_AGGREGATION'
       }
     });
     
   } catch (error) {
-    console.error('Route statistics error:', error);
+    console.error('Real route statistics error:', error);
     res.status(500).json({
       success: false,
-      message: 'Error fetching route statistics'
+      message: 'Error fetching real route statistics'
     });
   }
 });

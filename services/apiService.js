@@ -192,34 +192,52 @@ async getElevationBatch(coordinates, batchSize = 100) {
   }
 
   // TomTom Traffic API - Get traffic data
-  async getTrafficData(latitude, longitude, zoom = 10) {
-    try {
-      if (!this.tomtomApiKey) {
-        throw new Error('TomTom API key not configured');
-      }
+  async getTrafficData(latitude, longitude, radius = 1000) {
+  try {
+    if (!this.hereApiKey) {
+      throw new Error('HERE API key not configured');
+    }
 
-      const url = `https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json?point=${latitude},${longitude}&unit=KMPH&key=${this.tomtomApiKey}`;
-      
-      const response = await axios.get(url);
+    // HERE Traffic API v7 - Real-time flow data
+    const url = `https://data.traffic.hereapi.com/v7/flow?` +
+      `locationReferencing=shape&` +
+      `in=circle:${latitude},${longitude};r=${radius}&` +
+      `apikey=${this.hereApiKey}`;
+    
+    const response = await axios.get(url, { timeout: 15000 });
+    
+    if (response.data && response.data.results) {
+      const flowData = response.data.results[0]?.currentFlow;
       
       return {
-        currentSpeed: response.data.flowSegmentData.currentSpeed,
-        freeFlowSpeed: response.data.flowSegmentData.freeFlowSpeed,
-        confidence: response.data.flowSegmentData.confidence,
-        roadClosure: response.data.flowSegmentData.roadClosure
-      };
-
-    } catch (error) {
-      logger.error('TomTom Traffic API error:', error);
-      // Return default values if TomTom fails
-      return {
-        currentSpeed: 50,
-        freeFlowSpeed: 60,
-        confidence: 0.5,
-        roadClosure: false
+        currentSpeed: flowData?.speed || 50,
+        freeFlowSpeed: flowData?.freeFlow || 60,
+        jamFactor: flowData?.jamFactor || 0,
+        confidence: flowData?.confidence || 0.8,
+        roadClosure: flowData?.traversability === 'closed',
+        congestionLevel: this.determineCongestionLevel(flowData?.jamFactor || 0),
+        lastUpdated: new Date(),
+        dataSource: 'HERE_TRAFFIC_API_V7'
       };
     }
+    
+    throw new Error('No traffic data available');
+    
+  } catch (error) {
+    logger.error('HERE Traffic API error:', error);
+    // NO FALLBACK - Let calling code handle the error
+    throw new Error(`Real traffic data unavailable: ${error.message}`);
   }
+}
+
+// Add congestion level determination
+determineCongestionLevel(jamFactor) {
+  if (jamFactor >= 8) return 'severe';
+  if (jamFactor >= 6) return 'heavy';
+  if (jamFactor >= 4) return 'moderate';
+  if (jamFactor >= 2) return 'light';
+  return 'free_flow';
+}
 
   // HERE API - Get road attributes
   async getRoadAttributes(latitude, longitude) {
@@ -252,40 +270,56 @@ async getElevationBatch(coordinates, batchSize = 100) {
 
   // Visual Crossing Weather API - Historical weather data
   async getHistoricalWeather(latitude, longitude, date) {
-    try {
-      if (!this.visualCrossingApiKey) {
-        throw new Error('Visual Crossing API key not configured');
-      }
+  try {
+    if (!this.visualCrossingApiKey) {
+      throw new Error('Visual Crossing API key not configured');
+    }
 
-      const dateStr = date.toISOString().split('T')[0];
-      const url = `https://weather.visualcrossing.com/VisualCrossingWebServices/rest/services/timeline/${latitude},${longitude}/${dateStr}?key=${this.visualCrossingApiKey}`;
-      
-      const response = await axios.get(url);
-      
+    const dateStr = date.toISOString().split('T')[0];
+    const url = `https://weather.visualcrossing.com/VisualCrossingWebServices/rest/services/timeline/` +
+      `${latitude},${longitude}/${dateStr}?` +
+      `key=${this.visualCrossingApiKey}&` +
+      `include=days&` +
+      `elements=temp,humidity,precip,windspeed,visibility,conditions`;
+    
+    const response = await axios.get(url, { timeout: 15000 });
+    
+    if (response.data && response.data.days && response.data.days[0]) {
       const dayData = response.data.days[0];
       
       return {
         temperature: dayData.temp,
         humidity: dayData.humidity,
-        precipitation: dayData.precip,
+        precipitation: dayData.precip || 0,
         windSpeed: dayData.windspeed,
         visibility: dayData.visibility,
-        conditions: dayData.conditions
-      };
-
-    } catch (error) {
-      logger.error('Visual Crossing API error:', error);
-      // Return default values if Visual Crossing fails
-      return {
-        temperature: 25,
-        humidity: 60,
-        precipitation: 0,
-        windSpeed: 10,
-        visibility: 10,
-        conditions: 'Clear'
+        conditions: dayData.conditions,
+        riskScore: this.calculateWeatherRisk(dayData),
+        dataSource: 'VISUAL_CROSSING_API',
+        lastUpdated: new Date()
       };
     }
+    
+    throw new Error('No weather data available');
+    
+  } catch (error) {
+    logger.error('Visual Crossing API error:', error);
+    throw new Error(`Real weather data unavailable: ${error.message}`);
   }
+}
+
+// Add weather risk calculation
+calculateWeatherRisk(weatherData) {
+  let risk = 2; // Base risk
+  
+  if (weatherData.visibility < 5) risk += 3;
+  if (weatherData.windspeed > 30) risk += 2;
+  if (weatherData.precip > 10) risk += 2;
+  if (weatherData.conditions?.toLowerCase().includes('storm')) risk += 3;
+  if (weatherData.conditions?.toLowerCase().includes('fog')) risk += 3;
+  
+  return Math.max(1, Math.min(10, risk));
+}
 
   // Rate limiting helper
   async rateLimitedRequest(apiCall, retries = 3, delay = 1000) {

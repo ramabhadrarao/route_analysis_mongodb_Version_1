@@ -18,7 +18,6 @@ router.get('/calculate/:routeId', async (req, res) => {
     const { routeId } = req.params;
     const userId = req.user.id;
     
-    // Verify route ownership
     const route = await Route.findOne({
       _id: routeId,
       userId,
@@ -31,56 +30,32 @@ router.get('/calculate/:routeId', async (req, res) => {
         message: 'Route not found'
       });
     }
+
+    // REAL RISK CALCULATION - Replace mock implementation
+    const riskCalculationService = require('../services/riskCalculationService');
+    const realRiskScore = await riskCalculationService.calculateRouteRisk(routeId);
     
-    // Simplified risk calculation (without external service for now)
-    const mockRiskScore = {
-      roadConditions: 5.5,
-      accidentProne: 4.2,
-      sharpTurns: 3.8,
-      blindSpots: 4.1,
-      twoWayTraffic: 5.0,
-      trafficDensity: 6.2,
-      weatherConditions: 4.5,
-      emergencyServices: 3.8,
-      networkCoverage: 4.0,
-      amenities: 4.2,
-      securityIssues: 3.5,
-      totalWeightedScore: 4.8,
-      riskGrade: 'C',
-      calculatedAt: new Date()
-    };
-    
-    // Update route with new risk score
-    await Route.findByIdAndUpdate(routeId, {
-      riskScores: mockRiskScore,
-      riskLevel: mockRiskScore.totalWeightedScore > 6 ? 'HIGH' : 
-                 mockRiskScore.totalWeightedScore > 4 ? 'MEDIUM' : 'LOW',
-      'metadata.lastCalculated': new Date()
-    });
-    
-    // Mock risk explanation
+    // Real risk explanation based on actual data
     const explanation = {
-      grade: mockRiskScore.riskGrade,
-      score: mockRiskScore.totalWeightedScore,
-      explanation: 'Medium Risk - Route requires normal caution and attention',
-      recommendations: [
-        'Maintain normal driving practices',
-        'Monitor weather and traffic conditions',
-        'Ensure emergency kit is complete'
-      ]
+      grade: realRiskScore.riskGrade,
+      score: realRiskScore.totalWeightedScore,
+      explanation: this.generateRiskExplanation(realRiskScore),
+      recommendations: realRiskScore.safetyRecommendations,
+      dataQuality: realRiskScore.dataQuality,
+      confidence: realRiskScore.confidenceLevel
     };
     
     res.status(200).json({
       success: true,
       data: {
         routeId: route.routeId,
-        riskScore: mockRiskScore,
+        riskScore: realRiskScore,
         explanation
       }
     });
     
   } catch (error) {
-    logger.error('Risk calculation API error:', error);
+    logger.error('Real risk calculation API error:', error);
     res.status(500).json({
       success: false,
       message: 'Error calculating route risk'

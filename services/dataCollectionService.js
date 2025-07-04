@@ -576,24 +576,64 @@ class EnhancedDataCollectionService {
   }
 
   async getPlaceDetails(placeId) {
-    try {
-      // Mock implementation - would use Google Places Details API
+  try {
+    if (!this.googleMapsApiKey) {
+      throw new Error('Google Maps API key required for place details');
+    }
+
+    const url = `https://maps.googleapis.com/maps/api/place/details/json?` +
+      `place_id=${placeId}&` +
+      `fields=formatted_phone_number,formatted_address,opening_hours,website,accessibility&` +
+      `key=${this.googleMapsApiKey}`;
+
+    const response = await axios.get(url, { timeout: 10000 });
+    
+    if (response.data.status === 'OK' && response.data.result) {
+      const place = response.data.result;
+      
       return {
-        phoneNumber: '+91-' + Math.floor(Math.random() * 10000000000),
-        address: 'Address not available',
-        operatingHours: 'Hours not available',
-        website: '',
-        accessibility: 'Unknown',
-        amenities: []
-      };
-    } catch (error) {
-      return {
-        phoneNumber: 'Not available',
-        address: 'Address not available',
-        operatingHours: 'Hours not available'
+        phoneNumber: place.formatted_phone_number || 'Not available',
+        address: place.formatted_address || 'Address not available',
+        operatingHours: this.formatOperatingHours(place.opening_hours),
+        website: place.website || '',
+        accessibility: this.assessAccessibility(place),
+        amenities: this.extractAmenities(place),
+        dataSource: 'GOOGLE_PLACES_API',
+        lastUpdated: new Date()
       };
     }
+    
+    throw new Error('Place details not found');
+    
+  } catch (error) {
+    logger.error('Google Places API error:', error);
+    // NO MOCK FALLBACK - Return minimal real data only
+    return {
+      phoneNumber: 'API_UNAVAILABLE',
+      address: 'Address unavailable - API error',
+      operatingHours: 'Hours unavailable',
+      dataSource: 'API_ERROR',
+      error: error.message
+    };
   }
+}
+
+// Add helper methods
+formatOperatingHours(openingHours) {
+  if (!openingHours || !openingHours.weekday_text) {
+    return 'Hours not available';
+  }
+  
+  return openingHours.weekday_text.join('; ');
+}
+
+assessAccessibility(place) {
+  // Use Google accessibility data if available
+  if (place.wheelchair_accessible_entrance !== undefined) {
+    return place.wheelchair_accessible_entrance ? 'Wheelchair accessible' : 'Limited accessibility';
+  }
+  return 'Accessibility information not available';
+}
 
   mapEmergencyServiceType(serviceKey) {
     const mapping = {
@@ -1190,59 +1230,37 @@ class EnhancedDataCollectionService {
   // 12. COMPREHENSIVE ACCIDENT-PRONE AREAS
   async collectAccidentProneAreas(route) {
   try {
-    console.log('⚠️ Collecting REAL accident-prone area data using multiple APIs...');
+    console.log('🚨 Collecting REAL accident data from traffic APIs...');
     
-    // Use the new AccidentDataService for real data collection
+    // Use the enhanced accident data service
+    const accidentDataService = require('./accidentDataService');
     const realAccidentResults = await accidentDataService.collectRealAccidentProneAreas(route);
     
-    // The accidentDataService already saves data to database, so we just return the summary
-    return {
-      total: realAccidentResults.total || 0,
-      bySource: realAccidentResults.bySource || {},
-      highRiskAreas: realAccidentResults.highRiskAreas || 0,
-      averageRisk: realAccidentResults.averageRisk || 0,
-      dataSource: 'REAL_API_DATA',
-      apiIntegration: {
-        tomtom: process.env.TOMTOM_API_KEY ? 'ACTIVE' : 'NOT_CONFIGURED',
-        here: process.env.HERE_API_KEY ? 'ACTIVE' : 'NOT_CONFIGURED',
-        fallbackUsed: realAccidentResults.total === 0
-      },
+    // Validate we got real data, not fallback
+    if (realAccidentResults.total === 0 && realAccidentResults.apiStatus) {
+      const availableAPIs = Object.values(realAccidentResults.apiStatus)
+        .filter(status => status === 'CONFIGURED').length;
       
-      // Enhanced summary with compatibility for existing code
-      mediumRiskAreas: Math.floor((realAccidentResults.total || 0) * 0.6),
-      fatalAccidentZones: Math.floor((realAccidentResults.highRiskAreas || 0) * 0.3),
-      weatherRelatedZones: Math.floor((realAccidentResults.total || 0) * 0.4),
-      
-      // Additional real data insights
-      realDataInsights: {
-        trafficIncidents: realAccidentResults.bySource?.tomtom_api || 0,
-        hereIncidents: realAccidentResults.bySource?.here_api || 0,
-        historicalPatterns: realAccidentResults.bySource?.historical || 0,
-        dataQuality: realAccidentResults.total > 0 ? 'high' : 'fallback_used'
+      if (availableAPIs === 0) {
+        throw new Error('No accident data APIs configured - cannot collect real data');
       }
+    }
+    
+    return {
+      total: realAccidentResults.total,
+      bySource: realAccidentResults.bySource,
+      highRiskAreas: realAccidentResults.highRiskAreas,
+      averageRisk: realAccidentResults.averageRisk,
+      dataQuality: realAccidentResults.total > 0 ? 'real' : 'api_no_data',
+      confidence: realAccidentResults.total > 0 ? 0.9 : 0.0,
+      apiIntegration: realAccidentResults.apiStatus
     };
     
   } catch (error) {
-    console.error('REAL accident-prone areas collection failed:', error);
+    console.error('Real accident data collection failed:', error);
     
-    // Fallback to mock data if real collection fails
-    console.log('📝 Falling back to mock accident data...');
-    return {
-      total: Math.floor(route.totalDistance / 50),
-      bySource: { mock: Math.floor(route.totalDistance / 50) },
-      highRiskAreas: Math.floor(route.totalDistance / 100),
-      averageRisk: 4.5,
-      mediumRiskAreas: Math.floor(route.totalDistance / 75),
-      fatalAccidentZones: Math.floor(route.totalDistance / 150),
-      weatherRelatedZones: Math.floor(route.totalDistance / 80),
-      dataSource: 'FALLBACK_MOCK',
-      apiIntegration: {
-        tomtom: 'ERROR',
-        here: 'ERROR',
-        fallbackUsed: true
-      },
-      error: error.message
-    };
+    // NO FALLBACK TO MOCK DATA
+    throw new Error(`Real accident data collection failed: ${error.message}`);
   }
 }
 

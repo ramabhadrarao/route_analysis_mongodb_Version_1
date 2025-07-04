@@ -1092,10 +1092,33 @@ generateBlindSpotRecommendations(blindSpots) {
     }
   }
 
-  calculateConfidenceLevel(routeId) {
-    // Mock confidence calculation - would be based on data quality, API reliability, etc.
-    return Math.floor(Math.random() * 20) + 80; // 80-100% confidence
-  }
+ calculateConfidenceLevel(routeId) {
+  return this.assessDataQuality(routeId).then(quality => {
+    let confidence = 50; // Base confidence
+    
+    // Real data quality factors
+    if (quality.apiSuccessRate > 0.9) confidence += 30;
+    if (quality.dataFreshness < 1800000) confidence += 15; // < 30 min
+    if (quality.gpsPointDensity > 0.8) confidence += 15;
+    if (quality.externalApiStatus === 'healthy') confidence += 10;
+    
+    return Math.min(95, confidence);
+  });
+}
+
+// Add real data quality assessment
+async assessDataQuality(routeId) {
+  const route = await Route.findById(routeId);
+  const lastCalculated = route.metadata?.lastCalculated;
+  const gpsPointDensity = route.routePoints.length / route.totalDistance;
+  
+  return {
+    apiSuccessRate: await this.getApiSuccessRate(),
+    dataFreshness: lastCalculated ? Date.now() - lastCalculated.getTime() : Infinity,
+    gpsPointDensity: Math.min(1, gpsPointDensity / 10), // 10 points per km = 1.0
+    externalApiStatus: await this.checkExternalApiHealth()
+  };
+}
 
 }
 

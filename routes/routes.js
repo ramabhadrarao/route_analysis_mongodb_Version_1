@@ -209,18 +209,86 @@ router.post('/:id/recalculate-risk', routeController.recalculateRisk);
 // Route analytics endpoints
 router.get('/:id/analytics', async (req, res) => {
   try {
+    const { routeId } = req.params;
+    const userId = req.user.id;
+    
+    const route = await Route.findOne({
+      _id: routeId,
+      userId,
+      status: { $ne: 'deleted' }
+    });
+    
+    if (!route) {
+      return res.status(404).json({
+        success: false,
+        message: 'Route not found'
+      });
+    }
+    
+    // REAL ANALYTICS DATA COLLECTION
+    const [roadConditions, accidentAreas, weatherConditions, trafficData, emergencyServices] = await Promise.all([
+      RoadCondition.find({ routeId }),
+      AccidentProneArea.find({ routeId }),
+      WeatherCondition.find({ routeId }),
+      TrafficData.find({ routeId }),
+      EmergencyService.find({ routeId })
+    ]);
+    
+    const analytics = {
+      route: {
+        id: route._id,
+        routeId: route.routeId,
+        name: route.routeName,
+        distance: route.totalDistance,
+        riskLevel: route.riskLevel,
+        totalRiskScore: route.riskScores?.totalWeightedScore || 0
+      },
+      dataPoints: {
+        roadConditions: roadConditions.length,
+        accidentAreas: accidentAreas.length,
+        weatherPoints: weatherConditions.length,
+        trafficPoints: trafficData.length,
+        emergencyServices: emergencyServices.length
+      },
+      riskBreakdown: route.riskScores || {},
+      dataQuality: this.assessAnalyticsDataQuality(roadConditions, accidentAreas, weatherConditions),
+      lastUpdated: route.metadata?.lastCalculated || route.updatedAt,
+      dataSource: 'REAL_COLLECTED_DATA'
+    };
+    
     res.status(200).json({
       success: true,
-      message: 'Route analytics endpoint - coming soon',
-      routeId: req.params.id
+      data: analytics
     });
+    
   } catch (error) {
+    console.error('Real route analytics error:', error);
     res.status(500).json({
       success: false,
-      message: 'Error fetching route analytics'
+      message: 'Error fetching real route analytics'
     });
   }
 });
+
+// Helper method for data quality assessment
+function assessAnalyticsDataQuality(roadConditions, accidentAreas, weatherConditions) {
+  let quality = 'poor';
+  const totalDataPoints = roadConditions.length + accidentAreas.length + weatherConditions.length;
+  
+  if (totalDataPoints > 50) quality = 'excellent';
+  else if (totalDataPoints > 20) quality = 'good';
+  else if (totalDataPoints > 5) quality = 'fair';
+  
+  return {
+    level: quality,
+    totalDataPoints,
+    breakdown: {
+      roadConditions: roadConditions.length,
+      accidentAreas: accidentAreas.length,
+      weatherConditions: weatherConditions.length
+    }
+  };
+}
 
 // Export route data
 router.get('/:id/export', async (req, res) => {
