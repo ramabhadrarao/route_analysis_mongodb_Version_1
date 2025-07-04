@@ -2,7 +2,8 @@
 // Purpose: Enhanced comprehensive route data collection with detailed information
 // Collects: Emergency services, fuel stations, educational institutions, food stops, etc.
 // Includes: Phone numbers, distances from start/end points, detailed facility information
-
+const axios = require('axios'); // ✅ ADDED: Missing axios import
+const { logger } = require('../utils/logger'); // ✅ ADDED: Logger for better error handling
 const apiService = require('./apiService');
 const Route = require('../models/Route');
 const accidentDataService = require('./accidentDataService');
@@ -17,6 +18,8 @@ const EmergencyService = require('../models/EmergencyService');
 class EnhancedDataCollectionService {
   
   constructor() {
+          this.googleMapsApiKey = process.env.GOOGLE_MAPS_API_KEY;
+
     // Enhanced service categories for comprehensive collection
     this.serviceCategories = {
       // Critical Emergency Services
@@ -575,21 +578,53 @@ class EnhancedDataCollectionService {
     return R * c;
   }
 
-  async getPlaceDetails(placeId) {
+  // MINIMAL FIXES for services/dataCollectionService.js
+// Only add these lines at the top of your existing file
+
+// ✅ ADD THESE IMPORTS at the very top (after existing imports):
+// const axios = require('axios'); // Missing axios import
+// const { logger } = require('../utils/logger'); // Fix logger import
+
+// ✅ REPLACE the existing getPlaceDetails method with this fixed version:
+async getPlaceDetails(placeId) {
   try {
     if (!this.googleMapsApiKey) {
-      throw new Error('Google Maps API key required for place details');
+      console.warn('Google Maps API key not configured - returning minimal data');
+      return {
+        phoneNumber: 'API_KEY_NOT_CONFIGURED',
+        address: 'Address unavailable - API key required',
+        operatingHours: 'Hours unavailable',
+        website: '',
+        accessibility: 'Unknown',
+        amenities: [],
+        dataSource: 'NO_API_KEY',
+        lastUpdated: new Date()
+      };
     }
 
+    // ✅ FIXED: Use correct field names and remove invalid fields
     const url = `https://maps.googleapis.com/maps/api/place/details/json?` +
       `place_id=${placeId}&` +
-      `fields=formatted_phone_number,formatted_address,opening_hours,website,accessibility&` +
+      `fields=formatted_phone_number,formatted_address,opening_hours,website,business_status&` +
       `key=${this.googleMapsApiKey}`;
 
-    const response = await axios.get(url, { timeout: 10000 });
+    console.log(`📡 Getting place details for: ${placeId}`);
+
+    const response = await axios.get(url, { 
+      timeout: 10000,
+      headers: {
+        'Accept': 'application/json',
+        'User-Agent': 'HPCL-Journey-Risk-Management/2.0'
+      }
+    });
+    
+    console.log(`📡 Google Places API Response Status: ${response.status}`);
+    console.log(`📄 Google Places API Response:`, JSON.stringify(response.data, null, 2));
     
     if (response.data.status === 'OK' && response.data.result) {
       const place = response.data.result;
+      
+      console.log(`✅ Place details retrieved successfully for: ${place.name || 'Unknown'}`);
       
       return {
         phoneNumber: place.formatted_phone_number || 'Not available',
@@ -598,42 +633,139 @@ class EnhancedDataCollectionService {
         website: place.website || '',
         accessibility: this.assessAccessibility(place),
         amenities: this.extractAmenities(place),
+        businessStatus: place.business_status || 'UNKNOWN',
         dataSource: 'GOOGLE_PLACES_API',
+        lastUpdated: new Date()
+      };
+    } else {
+      console.warn(`❌ Google Places API returned status: ${response.data.status}`);
+      console.warn(`❌ Error message: ${response.data.error_message || 'No error message'}`);
+      
+      // Return fallback data with API status info
+      return {
+        phoneNumber: `API_STATUS_${response.data.status}`,
+        address: 'Address unavailable - API error',
+        operatingHours: 'Hours unavailable',
+        website: '',
+        accessibility: 'Unknown',
+        amenities: [],
+        dataSource: 'PLACES_API_ERROR',
+        apiStatus: response.data.status,
+        apiError: response.data.error_message,
         lastUpdated: new Date()
       };
     }
     
-    throw new Error('Place details not found');
-    
   } catch (error) {
-    logger.error('Google Places API error:', error);
-    // NO MOCK FALLBACK - Return minimal real data only
+    console.error('❌ Google Places API error:', error.message);
+    
+    if (error.response) {
+      console.error('❌ API Response Status:', error.response.status);
+      console.error('❌ API Response Data:', error.response.data);
+    }
+    
+    // Return fallback data instead of throwing
     return {
-      phoneNumber: 'API_UNAVAILABLE',
+      phoneNumber: 'API_ERROR',
       address: 'Address unavailable - API error',
       operatingHours: 'Hours unavailable',
+      website: '',
+      accessibility: 'Unknown',
+      amenities: [],
       dataSource: 'API_ERROR',
-      error: error.message
+      error: error.message,
+      lastUpdated: new Date()
     };
   }
 }
 
 // Add helper methods
 formatOperatingHours(openingHours) {
-  if (!openingHours || !openingHours.weekday_text) {
-    return 'Hours not available';
+  try {
+    if (!openingHours) {
+      return 'Hours not available';
+    }
+    
+    if (openingHours.weekday_text && openingHours.weekday_text.length > 0) {
+      return openingHours.weekday_text.join('; ');
+    }
+    
+    if (openingHours.open_now !== undefined) {
+      return openingHours.open_now ? 'Currently open' : 'Currently closed';
+    }
+    
+    return 'Hours format not recognized';
+  } catch (error) {
+    console.error('Error formatting operating hours:', error);
+    return 'Hours formatting error';
   }
-  
-  return openingHours.weekday_text.join('; ');
 }
 
+
 assessAccessibility(place) {
-  // Use Google accessibility data if available
-  if (place.wheelchair_accessible_entrance !== undefined) {
-    return place.wheelchair_accessible_entrance ? 'Wheelchair accessible' : 'Limited accessibility';
+  try {
+    // Check for wheelchair accessibility
+    if (place.wheelchair_accessible_entrance !== undefined) {
+      return place.wheelchair_accessible_entrance ? 'Wheelchair accessible' : 'Limited accessibility';
+    }
+    
+    // Check business status for accessibility hints
+    if (place.business_status === 'OPERATIONAL') {
+      return 'Accessibility information not available - Business operational';
+    }
+    
+    return 'Accessibility information not available';
+  } catch (error) {
+    console.error('Error assessing accessibility:', error);
+    return 'Accessibility information unavailable';
   }
-  return 'Accessibility information not available';
 }
+
+extractAmenities(place) {
+  try {
+    const amenities = [];
+    
+    // Extract amenities from place types if available
+    if (place.types && Array.isArray(place.types)) {
+      place.types.forEach(type => {
+        switch (type) {
+          case 'atm':
+            amenities.push('ATM Available');
+            break;
+          case 'parking':
+            amenities.push('Parking Available');
+            break;
+          case 'restaurant':
+            amenities.push('Food Service');
+            break;
+          case 'gas_station':
+            amenities.push('Fuel Available');
+            break;
+          case 'hospital':
+            amenities.push('Medical Services');
+            break;
+          case 'pharmacy':
+            amenities.push('Pharmacy Services');
+            break;
+          case 'bank':
+            amenities.push('Banking Services');
+            break;
+        }
+      });
+    }
+    
+    // Check business status
+    if (place.business_status === 'OPERATIONAL') {
+      amenities.push('Currently Operational');
+    }
+    
+    return amenities.length > 0 ? amenities : ['Basic Services'];
+  } catch (error) {
+    console.error('Error extracting amenities:', error);
+    return ['Service Information Unavailable'];
+  }
+}
+
 
   mapEmergencyServiceType(serviceKey) {
     const mapping = {
