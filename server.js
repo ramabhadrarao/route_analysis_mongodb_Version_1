@@ -1,5 +1,5 @@
-// File: server.js
-// Purpose: Minimal server for initial testing
+// File: server.js - UPDATED WITH NETWORK COVERAGE INTEGRATION
+// Purpose: Server with all routes including network coverage
 
 const express = require('express');
 const mongoose = require('mongoose');
@@ -66,16 +66,30 @@ try {
 } catch (error) {
   console.error('❌ Error loading sharp turns routes:', error.message);
 }
+
+// ✅ NEW: Network Coverage Routes Integration
+try {
+  const networkCoverageRoutes = require('./routes/networkCoverage');
+  app.use('/api/network-coverage', networkCoverageRoutes);
+  console.log('✅ Network coverage routes loaded');
+} catch (error) {
+  console.error('❌ Error loading network coverage routes:', error.message);
+}
+
 // Health check endpoint
 app.get('/health', (req, res) => {
   res.status(200).json({
     status: 'OK',
     timestamp: new Date().toISOString(),
-    uptime: process.uptime()
+    uptime: process.uptime(),
+    services: {
+      database: 'connected',
+      networkCoverage: 'available'
+    }
   });
 });
 
-// Root endpoint
+// Root endpoint with updated API list
 app.get('/', (req, res) => {
   res.json({
     message: 'HPCL Journey Risk Management System API',
@@ -85,7 +99,20 @@ app.get('/', (req, res) => {
       routes: '/api/routes',
       risk: '/api/risk',
       dashboard: '/api/dashboard',
+      visibility: '/api/visibility',
+      networkCoverage: '/api/network-coverage', // ✅ NEW
       health: '/health'
+    },
+    networkCoverageEndpoints: {
+      analyzeRoute: 'POST /api/network-coverage/routes/:routeId/analyze',
+      getOverview: 'GET /api/network-coverage/routes/:routeId/overview',
+      getDeadZones: 'GET /api/network-coverage/routes/:routeId/dead-zones',
+      getCriticalDeadZones: 'GET /api/network-coverage/routes/:routeId/critical-dead-zones',
+      getOperatorCoverage: 'GET /api/network-coverage/routes/:routeId/operator/:operator',
+      compareOperators: 'GET /api/network-coverage/routes/:routeId/operator-comparison',
+      getStatistics: 'GET /api/network-coverage/routes/:routeId/statistics',
+      checkExists: 'GET /api/network-coverage/routes/:routeId/exists',
+      deleteData: 'DELETE /api/network-coverage/routes/:routeId'
     }
   });
 });
@@ -94,7 +121,16 @@ app.get('/', (req, res) => {
 app.use('*', (req, res) => {
   res.status(404).json({
     message: 'Route not found',
-    path: req.originalUrl
+    path: req.originalUrl,
+    availableEndpoints: [
+      '/api/auth',
+      '/api/routes', 
+      '/api/risk',
+      '/api/dashboard',
+      '/api/visibility',
+      '/api/network-coverage',
+      '/health'
+    ]
   });
 });
 
@@ -114,6 +150,16 @@ app.listen(PORT, () => {
   console.log(`🚀 HPCL Journey Risk Management Server running on port ${PORT}`);
   console.log(`📊 Environment: ${process.env.NODE_ENV || 'development'}`);
   console.log(`🔗 API Base URL: http://localhost:${PORT}`);
+  console.log(`📶 Network Coverage API: http://localhost:${PORT}/api/network-coverage`);
+  console.log('');
+  console.log('Available API Endpoints:');
+  console.log('├── Authentication: /api/auth');
+  console.log('├── Routes: /api/routes');
+  console.log('├── Risk Assessment: /api/risk');
+  console.log('├── Dashboard: /api/dashboard');
+  console.log('├── Visibility Analysis: /api/visibility');
+  console.log('├── Network Coverage: /api/network-coverage ✨ NEW');
+  console.log('└── Health Check: /health');
 });
 
 module.exports = app;

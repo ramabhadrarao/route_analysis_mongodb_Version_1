@@ -1,9 +1,9 @@
-// File: routes/networkCoverage.js
-// Purpose: Network coverage and dead zone analysis API endpoints
+// File: routes/networkCoverage.js - FIXED INTEGRATION VERSION
+// Purpose: Network coverage API routes with proper service integration
 
 const express = require('express');
 const { auth } = require('../middleware/auth');
-const { NetworkCoverageService, NetworkCoverage } = require('../services/networkCoverageService');
+const { NetworkCoverageService } = require('../services/networkCoverageService'); // ✅ FIXED: Import from updated service
 const Route = require('../models/Route');
 
 const router = express.Router();
@@ -180,8 +180,8 @@ router.get('/routes/:routeId/dead-zones', async (req, res) => {
 
     // Include detailed recommendations if requested
     if (includeDetails === 'true') {
-      response.data.urgentRecommendations = this.generateUrgentDeadZoneRecommendations(deadZonesData.deadZones);
-      response.data.equipmentRecommendations = this.generateEquipmentRecommendations(statistics);
+      response.data.urgentRecommendations = generateUrgentDeadZoneRecommendations(deadZonesData.deadZones);
+      response.data.equipmentRecommendations = generateEquipmentRecommendations(statistics);
     }
 
     res.status(200).json(response);
@@ -215,6 +215,7 @@ router.get('/routes/:routeId/critical-dead-zones', async (req, res) => {
       });
     }
 
+    const NetworkCoverage = require('../models/NetworkCoverage');
     const criticalDeadZones = await NetworkCoverage.find({
       routeId,
       isDeadZone: true,
@@ -232,8 +233,8 @@ router.get('/routes/:routeId/critical-dead-zones', async (req, res) => {
       radius: zone.deadZoneRadius,
       terrain: zone.terrain,
       emergencyRisk: zone.emergencyRisk,
-      criticalFactors: this.identifyCriticalFactors(zone),
-      immediateActions: this.generateImmediateActions(zone)
+      criticalFactors: identifyCriticalFactors(zone),
+      immediateActions: generateImmediateActions(zone)
     }));
 
     res.status(200).json({
@@ -244,7 +245,7 @@ router.get('/routes/:routeId/critical-dead-zones', async (req, res) => {
         totalCritical: criticalAlerts.length,
         overallEmergencyRisk: criticalAlerts.length > 0 ? 
           Math.max(...criticalAlerts.map(z => z.emergencyRisk)) : 0,
-        routeRecommendation: this.generateRouteRecommendation(criticalAlerts, route)
+        routeRecommendation: generateRouteRecommendation(criticalAlerts, route)
       }
     });
 
@@ -305,7 +306,7 @@ router.get('/routes/:routeId/operator/:operator', async (req, res) => {
           routeName: route.routeName
         },
         operatorCoverage,
-        recommendations: this.generateOperatorRecommendations(operatorCoverage, operator)
+        recommendations: generateOperatorRecommendations(operatorCoverage, operator)
       }
     });
 
@@ -353,7 +354,7 @@ router.get('/routes/:routeId/operator-comparison', async (req, res) => {
     }
 
     // Calculate best and worst operators
-    const operatorRankings = this.rankOperators(operatorComparison);
+    const operatorRankings = rankOperators(operatorComparison);
     
     res.status(200).json({
       success: true,
@@ -364,7 +365,7 @@ router.get('/routes/:routeId/operator-comparison', async (req, res) => {
         },
         operatorComparison,
         rankings: operatorRankings,
-        recommendations: this.generateMultiOperatorRecommendations(operatorComparison)
+        recommendations: generateMultiOperatorRecommendations(operatorComparison)
       }
     });
 
@@ -373,131 +374,6 @@ router.get('/routes/:routeId/operator-comparison', async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Error comparing operator coverage'
-    });
-  }
-});
-
-// ============================================================================
-// DETAILED ANALYSIS ENDPOINTS
-// ============================================================================
-
-// Get detailed network coverage data for a route
-router.get('/routes/:routeId/detailed', async (req, res) => {
-  try {
-    const { routeId } = req.params;
-    const { includeAll = 'false', minSignal = '0' } = req.query;
-    const userId = req.user.id;
-    
-    // Verify route ownership
-    const route = await Route.findOne({
-      _id: routeId,
-      userId,
-      status: { $ne: 'deleted' }
-    });
-
-    if (!route) {
-      return res.status(404).json({
-        success: false,
-        message: 'Route not found'
-      });
-    }
-
-    let query = { routeId };
-    
-    // Filter by signal strength if specified
-    if (minSignal !== '0') {
-      query.signalStrength = { $gte: parseFloat(minSignal) };
-    }
-
-    const coveragePoints = await NetworkCoverage.find(query).sort({ distanceFromStartKm: 1 });
-
-    if (coveragePoints.length === 0) {
-      return res.status(404).json({
-        success: false,
-        message: 'No network coverage data found for this route'
-      });
-    }
-
-    // Process data based on detail level requested
-    const processedData = includeAll === 'true' ? 
-      this.getFullDetailedData(coveragePoints) :
-      this.getSummaryDetailedData(coveragePoints);
-
-    res.status(200).json({
-      success: true,
-      data: {
-        routeInfo: {
-          routeId: route.routeId,
-          routeName: route.routeName,
-          totalDistance: route.totalDistance
-        },
-        analysisDetails: {
-          totalPoints: coveragePoints.length,
-          dataQuality: this.assessDataQuality(coveragePoints),
-          analysisDate: coveragePoints[0]?.lastUpdated
-        },
-        coverageData: processedData
-      }
-    });
-
-  } catch (error) {
-    console.error('Detailed coverage error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Error fetching detailed coverage data'
-    });
-  }
-});
-
-// Get network coverage statistics
-router.get('/routes/:routeId/statistics', async (req, res) => {
-  try {
-    const { routeId } = req.params;
-    const userId = req.user.id;
-    
-    // Verify route ownership
-    const route = await Route.findOne({
-      _id: routeId,
-      userId,
-      status: { $ne: 'deleted' }
-    });
-
-    if (!route) {
-      return res.status(404).json({
-        success: false,
-        message: 'Route not found'
-      });
-    }
-
-    const coveragePoints = await NetworkCoverage.find({ routeId });
-
-    if (coveragePoints.length === 0) {
-      return res.status(404).json({
-        success: false,
-        message: 'No network coverage data found'
-      });
-    }
-
-    const statistics = this.calculateComprehensiveStatistics(coveragePoints, route);
-
-    res.status(200).json({
-      success: true,
-      data: {
-        routeInfo: {
-          routeId: route.routeId,
-          routeName: route.routeName,
-          totalDistance: route.totalDistance,
-          terrain: route.terrain
-        },
-        statistics
-      }
-    });
-
-  } catch (error) {
-    console.error('Coverage statistics error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Error calculating coverage statistics'
     });
   }
 });
@@ -526,14 +402,12 @@ router.delete('/routes/:routeId', async (req, res) => {
       });
     }
 
-    const deleteResult = await NetworkCoverage.deleteMany({ routeId });
+    const deleteResult = await NetworkCoverageService.deleteNetworkCoverageData(routeId);
 
     res.status(200).json({
       success: true,
       message: 'Network coverage data deleted successfully',
-      data: {
-        deletedPoints: deleteResult.deletedCount
-      }
+      data: deleteResult
     });
 
   } catch (error) {
@@ -565,6 +439,7 @@ router.get('/routes/:routeId/exists', async (req, res) => {
       });
     }
 
+    const NetworkCoverage = require('../models/NetworkCoverage');
     const count = await NetworkCoverage.countDocuments({ routeId });
     const lastAnalysis = await NetworkCoverage.findOne({ routeId }).sort({ lastUpdated: -1 });
 
@@ -588,9 +463,63 @@ router.get('/routes/:routeId/exists', async (req, res) => {
   }
 });
 
+// Get network coverage statistics
+router.get('/routes/:routeId/statistics', async (req, res) => {
+  try {
+    const { routeId } = req.params;
+    const userId = req.user.id;
+    
+    // Verify route ownership
+    const route = await Route.findOne({
+      _id: routeId,
+      userId,
+      status: { $ne: 'deleted' }
+    });
+
+    if (!route) {
+      return res.status(404).json({
+        success: false,
+        message: 'Route not found'
+      });
+    }
+
+    const statsData = await NetworkCoverageService.getNetworkCoverageStats(routeId);
+    
+    if (!statsData.exists) {
+      return res.status(404).json({
+        success: false,
+        message: 'No network coverage statistics available'
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      data: {
+        routeInfo: {
+          routeId: route.routeId,
+          routeName: route.routeName,
+          totalDistance: route.totalDistance,
+          terrain: route.terrain
+        },
+        statistics: statsData.stats
+      }
+    });
+
+  } catch (error) {
+    console.error('Coverage statistics error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error calculating coverage statistics'
+    });
+  }
+});
+
 // ============================================================================
-// HELPER METHODS
+// HELPER FUNCTIONS
 // ============================================================================
+
+// File: routes/networkCoverage.js - Helper Functions Part
+// Purpose: Helper functions for network coverage routes
 
 function generateUrgentDeadZoneRecommendations(deadZones) {
   const recommendations = [];
@@ -739,6 +668,16 @@ function generateOperatorRecommendations(operatorCoverage, operator) {
     recommendations.push('Use alternative communication methods in dead zones');
   }
   
+  if (operatorCoverage.averageSignal < 4) {
+    recommendations.push(`Weak signal strength detected (${operatorCoverage.averageSignal}/10)`);
+    recommendations.push('Use signal boosters or external antennas');
+  }
+  
+  if (operatorCoverage.averageCoverage > 80 && operatorCoverage.averageSignal > 6) {
+    recommendations.push(`${operator.toUpperCase()} provides good coverage for this route`);
+    recommendations.push('Primary operator recommendation for this route');
+  }
+  
   return recommendations;
 }
 
@@ -746,26 +685,46 @@ function rankOperators(operatorComparison) {
   const rankings = Object.entries(operatorComparison)
     .map(([operator, data]) => ({
       operator: operator.toUpperCase(),
-      score: this.calculateOperatorScore(data),
+      score: calculateOperatorScore(data),
       averageCoverage: data.averageCoverage,
-      deadZones: data.deadZones
+      averageSignal: data.averageSignal,
+      deadZones: data.deadZones,
+      reliability: data.reliability || 'unknown'
     }))
     .sort((a, b) => b.score - a.score);
   
   return {
     best: rankings[0]?.operator || 'None',
     worst: rankings[rankings.length - 1]?.operator || 'None',
-    rankings
+    rankings,
+    analysis: {
+      bestScore: rankings[0]?.score || 0,
+      worstScore: rankings[rankings.length - 1]?.score || 0,
+      scoreRange: (rankings[0]?.score || 0) - (rankings[rankings.length - 1]?.score || 0)
+    }
   };
 }
 
 function calculateOperatorScore(operatorData) {
   // Calculate composite score based on coverage and reliability
-  let score = operatorData.averageCoverage;
-  score -= operatorData.deadZones * 5; // Penalty for dead zones
-  score += operatorData.averageSignal * 5; // Bonus for signal strength
+  let score = operatorData.averageCoverage || 0; // Base score from coverage percentage
   
-  return Math.max(0, Math.min(100, score));
+  // Signal strength bonus
+  score += (operatorData.averageSignal || 0) * 5; // Signal strength contributes up to 50 points
+  
+  // Dead zone penalty
+  score -= (operatorData.deadZones || 0) * 3; // Each dead zone reduces score by 3
+  
+  // Reliability bonus
+  const reliabilityBonus = {
+    'excellent': 20,
+    'good': 10,
+    'fair': 0,
+    'poor': -10
+  };
+  score += reliabilityBonus[operatorData.reliability] || 0;
+  
+  return Math.max(0, Math.min(100, Math.round(score)));
 }
 
 function generateMultiOperatorRecommendations(operatorComparison) {
@@ -773,176 +732,54 @@ function generateMultiOperatorRecommendations(operatorComparison) {
   const operators = Object.keys(operatorComparison);
   
   if (operators.length > 1) {
-    recommendations.push('Use multiple SIM cards for redundancy');
+    recommendations.push({
+      priority: 'HIGH',
+      category: 'redundancy',
+      recommendation: 'Use multiple SIM cards for redundancy',
+      reason: 'Different operators have varying coverage patterns'
+    });
     
-    const bestOperator = this.rankOperators(operatorComparison).best;
-    recommendations.push(`Primary: ${bestOperator} (best overall coverage)`);
+    const rankings = rankOperators(operatorComparison);
+    const bestOperator = rankings.best;
     
-    recommendations.push('Configure automatic network switching');
+    if (bestOperator !== 'None') {
+      recommendations.push({
+        priority: 'MEDIUM',
+        category: 'primary_operator',
+        recommendation: `Primary: ${bestOperator} (best overall coverage)`,
+        reason: `Highest combined score of ${rankings.rankings[0].score}/100`
+      });
+    }
+    
+    recommendations.push({
+      priority: 'MEDIUM',
+      category: 'device_setup',
+      recommendation: 'Configure automatic network switching',
+      reason: 'Seamless transition between operators'
+    });
   }
   
-  recommendations.push('Test all operators before journey');
+  // Check for poor overall coverage
+  const avgCoverage = Object.values(operatorComparison)
+    .reduce((sum, op) => sum + (op.averageCoverage || 0), 0) / operators.length;
+  
+  if (avgCoverage < 60) {
+    recommendations.push({
+      priority: 'CRITICAL',
+      category: 'alternative_communication',
+      recommendation: 'Mandatory satellite communication backup',
+      reason: `Poor overall cellular coverage (${Math.round(avgCoverage)}% average)`
+    });
+  }
+  
+  recommendations.push({
+    priority: 'STANDARD',
+    category: 'testing',
+    recommendation: 'Test all operators before journey',
+    reason: 'Verify actual performance vs predicted coverage'
+  });
   
   return recommendations;
-}
-
-function getFullDetailedData(coveragePoints) {
-  return coveragePoints.map(point => ({
-    location: {
-      latitude: point.latitude,
-      longitude: point.longitude,
-      distanceFromStart: point.distanceFromStartKm
-    },
-    coverage: {
-      type: point.coverageType,
-      signalStrength: point.signalStrength,
-      isDeadZone: point.isDeadZone
-    },
-    operators: point.operatorCoverage,
-    riskAssessment: {
-      communicationRisk: point.communicationRisk,
-      emergencyRisk: point.emergencyRisk
-    },
-    environment: {
-      terrain: point.terrain,
-      elevation: point.elevation,
-      interferenceFactors: point.interferenceFactors
-    },
-    recommendations: point.recommendations
-  }));
-}
-
-function getSummaryDetailedData(coveragePoints) {
-  return coveragePoints.map(point => ({
-    location: {
-      latitude: point.latitude,
-      longitude: point.longitude,
-      distanceFromStart: point.distanceFromStartKm
-    },
-    signalStrength: point.signalStrength,
-    isDeadZone: point.isDeadZone,
-    communicationRisk: point.communicationRisk,
-    terrain: point.terrain
-  }));
-}
-
-function assessDataQuality(coveragePoints) {
-  const totalPoints = coveragePoints.length;
-  const completePoints = coveragePoints.filter(p => 
-    p.operatorCoverage && 
-    p.signalStrength !== undefined && 
-    p.terrain
-  ).length;
-  
-  const completeness = (completePoints / totalPoints) * 100;
-  
-  let quality = 'poor';
-  if (completeness >= 95) quality = 'excellent';
-  else if (completeness >= 85) quality = 'good';
-  else if (completeness >= 70) quality = 'fair';
-  
-  return {
-    level: quality,
-    completeness: Math.round(completeness),
-    totalPoints,
-    completePoints
-  };
-}
-
-function calculateComprehensiveStatistics(coveragePoints, route) {
-  const deadZones = coveragePoints.filter(p => p.isDeadZone);
-  const weakSignalAreas = coveragePoints.filter(p => p.signalStrength < 4 && !p.isDeadZone);
-  
-  return {
-    coverage: {
-      totalAnalysisPoints: coveragePoints.length,
-      averageSignalStrength: Math.round((coveragePoints.reduce((sum, p) => sum + p.signalStrength, 0) / coveragePoints.length) * 10) / 10,
-      coverageQuality: this.determineCoverageQuality(coveragePoints)
-    },
-    deadZones: {
-      total: deadZones.length,
-      percentage: Math.round((deadZones.length / coveragePoints.length) * 100),
-      bySeverity: this.groupBySeverity(deadZones),
-      totalDuration: deadZones.reduce((sum, dz) => sum + dz.deadZoneDuration, 0),
-      averageRadius: deadZones.length > 0 ? 
-        Math.round(deadZones.reduce((sum, dz) => sum + dz.deadZoneRadius, 0) / deadZones.length) : 0
-    },
-    weakSignalAreas: {
-      total: weakSignalAreas.length,
-      percentage: Math.round((weakSignalAreas.length / coveragePoints.length) * 100)
-    },
-    riskAssessment: {
-      averageCommunicationRisk: Math.round((coveragePoints.reduce((sum, p) => sum + p.communicationRisk, 0) / coveragePoints.length) * 10) / 10,
-      averageEmergencyRisk: Math.round((coveragePoints.reduce((sum, p) => sum + p.emergencyRisk, 0) / coveragePoints.length) * 10) / 10,
-      highRiskAreas: coveragePoints.filter(p => p.communicationRisk > 7).length
-    },
-    terrainBreakdown: this.groupByTerrain(coveragePoints),
-    operatorPerformance: this.calculateOperatorPerformance(coveragePoints)
-  };
-}
-
-function determineCoverageQuality(coveragePoints) {
-  const averageSignal = coveragePoints.reduce((sum, p) => sum + p.signalStrength, 0) / coveragePoints.length;
-  const deadZonePercentage = (coveragePoints.filter(p => p.isDeadZone).length / coveragePoints.length) * 100;
-  
-  if (averageSignal >= 7 && deadZonePercentage < 5) return 'excellent';
-  if (averageSignal >= 5 && deadZonePercentage < 15) return 'good';
-  if (averageSignal >= 3 && deadZonePercentage < 30) return 'fair';
-  return 'poor';
-}
-
-function groupBySeverity(deadZones) {
-  return {
-    critical: deadZones.filter(dz => dz.deadZoneSeverity === 'critical').length,
-    severe: deadZones.filter(dz => dz.deadZoneSeverity === 'severe').length,
-    moderate: deadZones.filter(dz => dz.deadZoneSeverity === 'moderate').length,
-    minor: deadZones.filter(dz => dz.deadZoneSeverity === 'minor').length
-  };
-}
-
-function groupByTerrain(coveragePoints) {
-  const terrainGroups = {};
-  coveragePoints.forEach(point => {
-    const terrain = point.terrain || 'unknown';
-    if (!terrainGroups[terrain]) {
-      terrainGroups[terrain] = {
-        count: 0,
-        averageSignal: 0,
-        deadZones: 0
-      };
-    }
-    terrainGroups[terrain].count++;
-    terrainGroups[terrain].averageSignal += point.signalStrength;
-    if (point.isDeadZone) terrainGroups[terrain].deadZones++;
-  });
-  
-  // Calculate averages
-  Object.values(terrainGroups).forEach(group => {
-    group.averageSignal = Math.round((group.averageSignal / group.count) * 10) / 10;
-  });
-  
-  return terrainGroups;
-}
-
-function calculateOperatorPerformance(coveragePoints) {
-  const operators = ['airtel', 'jio', 'vi', 'bsnl'];
-  const performance = {};
-  
-  operators.forEach(operator => {
-    const operatorData = coveragePoints.map(p => p.operatorCoverage[operator]);
-    const averageCoverage = operatorData.reduce((sum, data) => sum + data.coverage, 0) / operatorData.length;
-    const deadZones = operatorData.filter(data => data.coverage === 0).length;
-    
-    performance[operator] = {
-      averageCoverage: Math.round(averageCoverage),
-      deadZones,
-      reliability: deadZones === 0 ? 'excellent' : 
-                  deadZones < coveragePoints.length * 0.1 ? 'good' :
-                  deadZones < coveragePoints.length * 0.3 ? 'fair' : 'poor'
-    };
-  });
-  
-  return performance;
 }
 
 module.exports = router;
