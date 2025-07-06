@@ -9,6 +9,16 @@ const { body, query } = require('express-validator');
 const routeController = require('../controllers/routeController');
 const { auth } = require('../middleware/auth');
 const logger = require('../utils/logger');
+// ============================================================================
+// ADD THESE MISSING IMPORTS (add these lines)
+// ============================================================================
+const Route = require('../models/Route');  // ✅ ADD THIS LINE
+const AccidentProneArea = require('../models/AccidentProneArea');  // ✅ ADD THIS LINE
+const RoadCondition = require('../models/RoadCondition');  // ✅ ADD THIS LINE if not present
+const WeatherCondition = require('../models/WeatherCondition');  // ✅ ADD THIS LINE if not present
+const TrafficData = require('../models/TrafficData');  // ✅ ADD THIS LINE if not present
+const EmergencyService = require('../models/EmergencyService');  // ✅ ADD THIS LINE if not present
+
 const router = express.Router();
 
 // Configure multer for file uploads
@@ -2412,6 +2422,191 @@ router.get('/:id/export-visibility-report', async (req, res) => {
     });
   }
 });
+// Enhanced accident-prone areas analysis
+router.post('/:id/analyze-accident-areas', async (req, res) => {
+  try {
+    const { routeId } = req.params;
+    const userId = req.user.id;
+    
+    const route = await Route.findOne({
+      _id: routeId,
+      userId,
+      status: { $ne: 'deleted' }
+    });
+
+    if (!route) {
+      return res.status(404).json({
+        success: false,
+        message: 'Route not found'
+      });
+    }
+
+    console.log(`🚨 Starting enhanced accident analysis for route: ${route.routeId}`);
+    
+    const accidentProneAreasService = require('../services/accidentProneAreasService');
+    const accidentReport = await accidentProneAreasService.collectAccidentProneAreasForRoute(routeId);
+
+    res.status(200).json({
+      success: true,
+      message: 'Enhanced accident-prone areas analysis completed',
+      data: {
+        routeInfo: {
+          routeId: route.routeId,
+          routeName: route.routeName,
+          fromName: route.fromName,
+          toName: route.toName,
+          totalDistance: route.totalDistance,
+          terrain: route.terrain
+        },
+        accidentAnalysis: accidentReport,
+        enhancementDetails: {
+          realDataSources: ['TomTom Traffic API', 'HERE Traffic API', 'Google Places API'],
+          apiIntegration: accidentReport.apiStatus,
+          dataQuality: accidentReport.dataQuality,
+          noMockData: true
+        },
+        recommendations: {
+          immediate: accidentReport.overallRecommendations.filter(r => r.priority === 'CRITICAL'),
+          planning: accidentReport.overallRecommendations.filter(r => r.priority === 'HIGH'),
+          monitoring: accidentReport.overallRecommendations.filter(r => r.priority === 'MEDIUM')
+        },
+        nextSteps: [
+          'Review high-risk and critical accident areas',
+          'Monitor real-time traffic updates from TomTom/HERE',
+          'Implement enhanced safety protocols for critical areas',
+          'Consider alternative routing for areas with highest risk',
+          'Brief drivers on specific accident-prone locations'
+        ]
+      }
+    });
+
+  } catch (error) {
+    console.error('Enhanced accident analysis error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error during enhanced accident analysis',
+      error: error.message,
+      troubleshooting: [
+        'Verify TomTom API key is configured (TOMTOM_API_KEY)',
+        'Verify HERE API key is configured (HERE_API_KEY)', 
+        'Verify Google Maps API key is configured (GOOGLE_MAPS_API_KEY)',
+        'Check API rate limits and quotas',
+        'Ensure route has sufficient GPS points for analysis'
+      ]
+    });
+  }
+});
+
+// Get collected accident-prone areas for a route
+router.get('/:id/accident-areas-enhanced', async (req, res) => {
+  try {
+    const { routeId } = req.params;
+    const userId = req.user.id;
+    const { includeRecommendations = 'true', riskLevel = 'all' } = req.query;
+    
+    const route = await Route.findOne({
+      _id: routeId,
+      userId,
+      status: { $ne: 'deleted' }
+    });
+
+    if (!route) {
+      return res.status(404).json({
+        success: false,
+        message: 'Route not found'
+      });
+    }
+
+    // Build query filter
+    let filter = { routeId };
+    if (riskLevel !== 'all') {
+      const riskMapping = {
+        'low': { $lt: 4 },
+        'medium': { $gte: 4, $lt: 7 },
+        'high': { $gte: 7, $lt: 8 },
+        'critical': { $gte: 8 }
+      };
+      if (riskMapping[riskLevel]) {
+        filter.riskScore = riskMapping[riskLevel];
+      }
+    }
+
+    const AccidentProneArea = require('../models/AccidentProneArea');
+    const accidentAreas = await AccidentProneArea.find(filter)
+      .sort({ riskScore: -1, distanceFromStartKm: 1 });
+
+    const summary = {
+      total: accidentAreas.length,
+      highRisk: accidentAreas.filter(a => a.riskScore >= 7).length,
+      critical: accidentAreas.filter(a => a.riskScore >= 8).length,
+      averageRisk: accidentAreas.length > 0 ? 
+        Math.round((accidentAreas.reduce((sum, a) => sum + a.riskScore, 0) / accidentAreas.length) * 100) / 100 : 0,
+      dataSourceBreakdown: accidentAreas.reduce((acc, area) => {
+        const source = area.dataSource;
+        acc[source] = (acc[source] || 0) + 1;
+        return acc;
+      }, {}),
+      severityBreakdown: {
+        fatal: accidentAreas.filter(a => a.accidentSeverity === 'fatal').length,
+        major: accidentAreas.filter(a => a.accidentSeverity === 'major').length,
+        minor: accidentAreas.filter(a => a.accidentSeverity === 'minor').length
+      }
+    };
+
+    const enhancedAccidentData = accidentAreas.map(area => ({
+      id: area._id,
+      coordinates: {
+        latitude: area.latitude,
+        longitude: area.longitude
+      },
+      distanceFromStart: area.distanceFromStartKm,
+      riskScore: area.riskScore,
+      severity: area.accidentSeverity,
+      accidentTypes: area.commonAccidentTypes,
+      contributingFactors: area.contributingFactors,
+      annualFrequency: area.accidentFrequencyYearly,
+      riskFactors: {
+        timeOfDay: area.timeOfDayRisk,
+        weather: area.weatherRelatedRisk,
+        infrastructure: area.infrastructureRisk,
+        traffic: area.trafficVolumeRisk
+      },
+      lastIncident: area.lastAccidentDate,
+      trend: area.accidentTrend,
+      safetyMeasures: area.safetyMeasuresPresent,
+      dataSource: area.dataSource,
+      dataQuality: area.dataQuality,
+      ...(includeRecommendations === 'true' && {
+        recommendations: area.recommendedImprovements
+      })
+    }));
+
+    res.status(200).json({
+      success: true,
+      data: {
+        routeInfo: {
+          routeId: route.routeId,
+          routeName: route.routeName,
+          totalDistance: route.totalDistance
+        },
+        summary,
+        accidentAreas: enhancedAccidentData,
+        enhancementInfo: {
+          version: 'Enhanced_v2.0',
+          realDataOnly: true,
+          apiSources: Object.keys(summary.dataSourceBreakdown)
+        }
+      }
+    });
+
+  } catch (error) {
+    console.error('Enhanced accident areas fetch error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching enhanced accident areas data'
+    });
+  }
+});
 
 // Helper functions for the export report
 function getRouteRecommendation(sharpTurns, blindSpots) {
@@ -2455,4 +2650,7 @@ function generateKeyFindings(sharpTurns, blindSpots, route) {
   
   return findings;
 }
+
+
+
 module.exports = router;

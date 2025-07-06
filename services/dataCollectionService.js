@@ -977,37 +977,60 @@ class UnifiedDataCollectionService {
   // ============================================================================
   // COMPREHENSIVE ACCIDENT-PRONE AREAS
   // ============================================================================
+
   async collectAccidentProneAreas(route) {
-    try {
-      console.log('🚨 Collecting REAL accident data from traffic APIs...');
-      
-      const accidentDataService = require('./accidentDataService');
-      const realAccidentResults = await accidentDataService.collectRealAccidentProneAreas(route);
-      
-      if (realAccidentResults.total === 0 && realAccidentResults.apiStatus) {
-        const availableAPIs = Object.values(realAccidentResults.apiStatus)
-          .filter(status => status === 'CONFIGURED').length;
-        
-        if (availableAPIs === 0) {
-          throw new Error('No accident data APIs configured - cannot collect real data');
-        }
+  try {
+    console.log('🚨 Collecting REAL accident-prone areas using enhanced service...');
+    const accidentProneAreasService = require('./accidentProneAreasService');
+
+    
+    // Use the new enhanced accident service
+    const enhancedResults = await accidentProneAreasService.collectAccidentProneAreasForRoute(route._id);
+    
+    console.log(`✅ Enhanced accident data collection completed: ${enhancedResults.totalAreas} areas found`);
+    
+    return {
+      total: enhancedResults.totalAreas,
+      highRiskAreas: enhancedResults.highRiskAreas,
+      criticalAreas: enhancedResults.criticalAreas,
+      averageRisk: enhancedResults.averageRiskScore,
+      maxRisk: enhancedResults.maxRiskScore,
+      byDataSource: enhancedResults.byDataSource,
+      bySeverity: enhancedResults.bySeverity,
+      geographicSpread: enhancedResults.geographicSpread,
+      dataQuality: enhancedResults.dataQuality,
+      apiStatus: enhancedResults.apiStatus,
+      recommendations: enhancedResults.overallRecommendations,
+      enhancementInfo: {
+        serviceVersion: 'Enhanced_v2.0',
+        realDataSources: ['TomTom Traffic API', 'HERE Traffic API', 'Google Places API'],
+        noMockData: true,
+        confidence: enhancedResults.dataQuality.confidence
       }
-      
-      return {
-        total: realAccidentResults.total,
-        bySource: realAccidentResults.bySource,
-        highRiskAreas: realAccidentResults.highRiskAreas,
-        averageRisk: realAccidentResults.averageRisk,
-        dataQuality: realAccidentResults.total > 0 ? 'real' : 'api_no_data',
-        confidence: realAccidentResults.total > 0 ? 0.9 : 0.0,
-        apiIntegration: realAccidentResults.apiStatus
-      };
-      
-    } catch (error) {
-      console.error('Real accident data collection failed:', error);
-      throw new Error(`Real accident data collection failed: ${error.message}`);
-    }
+    };
+    
+  } catch (error) {
+    console.error('Enhanced accident data collection failed:', error);
+    
+    // Fallback: Return empty results instead of mock data
+    return {
+      total: 0,
+      highRiskAreas: 0,
+      criticalAreas: 0,
+      averageRisk: 0,
+      maxRisk: 0,
+      byDataSource: {},
+      bySeverity: { fatal: 0, major: 0, minor: 0 },
+      error: error.message,
+      enhancementInfo: {
+        serviceVersion: 'Enhanced_v2.0_FAILED',
+        realDataSources: ['TomTom Traffic API', 'HERE Traffic API', 'Google Places API'],
+        noMockData: true,
+        fallbackUsed: true
+      }
+    };
   }
+}
 
   // ============================================================================
   // ENHANCED ROAD CONDITIONS
