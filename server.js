@@ -83,6 +83,14 @@ try {
 } catch (error) {
   console.error('❌ Error loading sharp turn image routes:', error.message);
 }
+// ADD THIS IMPORT after existing route imports:
+try {
+  const enhancedRoadConditionsRoutes = require('./routes/enhancedRoadConditions');
+  app.use('/api/enhanced-road-conditions', enhancedRoadConditionsRoutes);
+  console.log('✅ Enhanced road conditions routes loaded');
+} catch (error) {
+  console.error('❌ Error loading enhanced road conditions routes:', error.message);
+}
 // Health check endpoint
 app.get('/health', (req, res) => {
   res.status(200).json({
@@ -108,6 +116,8 @@ app.get('/', (req, res) => {
       dashboard: '/api/dashboard',
       visibility: '/api/visibility',
       networkCoverage: '/api/network-coverage', // ✅ NEW
+            enhancedRoadConditions: '/api/enhanced-road-conditions', // ✅ NEW
+
       health: '/health'
     },
     networkCoverageEndpoints: {
@@ -120,7 +130,26 @@ app.get('/', (req, res) => {
       getStatistics: 'GET /api/network-coverage/routes/:routeId/statistics',
       checkExists: 'GET /api/network-coverage/routes/:routeId/exists',
       deleteData: 'DELETE /api/network-coverage/routes/:routeId'
+    },
+     enhancedRoadConditionsEndpoints: {
+      // Analysis
+      analyzeRoute: 'POST /api/enhanced-road-conditions/routes/:routeId/analyze',
+      
+      // Data Viewing
+      getOverview: 'GET /api/enhanced-road-conditions/routes/:routeId/overview',
+      getSegments: 'GET /api/enhanced-road-conditions/routes/:routeId/segments',
+      getRiskAssessment: 'GET /api/enhanced-road-conditions/routes/:routeId/risk-assessment',
+      getRecommendations: 'GET /api/enhanced-road-conditions/routes/:routeId/recommendations',
+      
+      // Comparison & Analysis
+      compareRoutes: 'GET /api/enhanced-road-conditions/routes/:routeId/compare',
+      
+      // Utilities
+      checkApiStatus: 'GET /api/enhanced-road-conditions/api-status',
+      deleteData: 'DELETE /api/enhanced-road-conditions/routes/:routeId'
     }
+     
+
   });
 });
 
