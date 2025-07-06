@@ -91,6 +91,14 @@ try {
 } catch (error) {
   console.error('❌ Error loading enhanced road conditions routes:', error.message);
 }
+// Add after your existing routes
+try {
+  const pdfRoutes = require('./routes/pdfGeneration');
+  app.use('/api/pdf', pdfRoutes);
+  console.log('✅ HPCL PDF generation routes loaded');
+} catch (error) {
+  console.error('❌ Error loading PDF routes:', error.message);
+}
 // Health check endpoint
 app.get('/health', (req, res) => {
   res.status(200).json({
