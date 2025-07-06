@@ -28,7 +28,7 @@ class UnifiedDataCollectionService {
       'hospital': { 
         type: 'hospital', 
         priority: 'critical', 
-        radius: 50000,
+        radius: 2000,
         category: 'emergency_medical',
         servicesOffered: ['Emergency Care', 'Surgery', 'Diagnostics', 'ICU', 'Pharmacy'],
         emergencyNumber: '108'
@@ -36,7 +36,7 @@ class UnifiedDataCollectionService {
       'emergency_room': { 
         type: 'hospital', 
         priority: 'critical', 
-        radius: 30000,
+        radius: 2000,
         category: 'emergency_medical',
         servicesOffered: ['Emergency Care', 'Trauma Care', 'Ambulance'],
         emergencyNumber: '108'
@@ -44,7 +44,7 @@ class UnifiedDataCollectionService {
       'clinic': { 
         type: 'hospital', 
         priority: 'high', 
-        radius: 25000,
+        radius: 2000,
         category: 'emergency_medical',
         servicesOffered: ['General Medicine', 'Consultation', 'Basic Treatment'],
         emergencyNumber: '108'
@@ -52,7 +52,7 @@ class UnifiedDataCollectionService {
       'pharmacy': { 
         type: 'hospital', 
         priority: 'medium', 
-        radius: 15000,
+        radius: 2000,
         category: 'emergency_medical',
         servicesOffered: ['Medicines', 'Medical Supplies', 'Health Products'],
         emergencyNumber: '108'
@@ -64,7 +64,7 @@ class UnifiedDataCollectionService {
       'police': { 
         type: 'police', 
         priority: 'critical', 
-        radius: 40000,
+        radius: 2000,
         category: 'law_enforcement',
         servicesOffered: ['Emergency Response', 'Law Enforcement', 'Traffic Control', 'Crime Investigation'],
         emergencyNumber: '100'
@@ -72,7 +72,7 @@ class UnifiedDataCollectionService {
       'courthouse': { 
         type: 'police', 
         priority: 'medium', 
-        radius: 50000,
+        radius: 2000,
         category: 'law_enforcement',
         servicesOffered: ['Judicial Services', 'Legal Aid', 'Court Proceedings'],
         emergencyNumber: '100'
@@ -84,7 +84,7 @@ class UnifiedDataCollectionService {
       'fire_station': { 
         type: 'fire_station', 
         priority: 'critical', 
-        radius: 35000,
+        radius: 2000,
         category: 'fire_rescue',
         servicesOffered: ['Fire Fighting', 'Emergency Medical', 'Rescue Operations', 'Hazmat Response'],
         emergencyNumber: '101'
@@ -96,7 +96,7 @@ class UnifiedDataCollectionService {
       'gas_station': { 
         type: 'mechanic', 
         priority: 'high', 
-        radius: 25000,
+        radius: 2000,
         category: 'fuel_vehicle',
         servicesOffered: ['Fuel', 'Basic Maintenance', 'Car Wash', 'Convenience Store'],
         fuelTypes: ['Petrol', 'Diesel', 'CNG'],
@@ -107,7 +107,7 @@ class UnifiedDataCollectionService {
       'car_repair': { 
         type: 'mechanic', 
         priority: 'medium', 
-        radius: 20000,
+        radius: 2000,
         category: 'fuel_vehicle',
         servicesOffered: ['Engine Repair', 'Electrical', 'Body Work', 'Towing', 'Parts'],
         equipment: ['Diagnostic Tools', 'Lifting Equipment', 'Welding']
@@ -115,7 +115,7 @@ class UnifiedDataCollectionService {
       'car_dealer': { 
         type: 'mechanic', 
         priority: 'low', 
-        radius: 30000,
+        radius: 2000,
         category: 'fuel_vehicle',
         servicesOffered: ['Sales', 'Service', 'Parts', 'Warranty'],
         specializations: ['New Vehicles', 'Used Vehicles', 'Commercial Vehicles']
@@ -127,7 +127,7 @@ class UnifiedDataCollectionService {
       'school': { 
         type: 'educational', 
         priority: 'medium', 
-        radius: 20000,
+        radius: 2000,
         category: 'educational',
         servicesOffered: ['Primary Education', 'Secondary Education', 'Emergency Shelter'],
         institutionType: 'school',
@@ -136,7 +136,7 @@ class UnifiedDataCollectionService {
       'university': { 
         type: 'educational', 
         priority: 'medium', 
-        radius: 30000,
+        radius: 2000,
         category: 'educational',
         servicesOffered: ['Higher Education', 'Research', 'Medical Center', 'Emergency Shelter'],
         institutionType: 'university',
@@ -145,7 +145,7 @@ class UnifiedDataCollectionService {
       'college': { 
         type: 'educational', 
         priority: 'medium', 
-        radius: 25000,
+        radius: 2000,
         category: 'educational',
         servicesOffered: ['Higher Education', 'Vocational Training', 'Emergency Shelter'],
         institutionType: 'college',
@@ -158,7 +158,7 @@ class UnifiedDataCollectionService {
       'restaurant': { 
         type: 'amenity', 
         priority: 'medium', 
-        radius: 20000,
+        radius: 2000,
         category: 'food_rest',
         servicesOffered: ['Food Service', 'Rest Area', 'Restrooms', 'Parking'],
         stopType: 'restaurant',
@@ -169,7 +169,7 @@ class UnifiedDataCollectionService {
       'food': { 
         type: 'amenity', 
         priority: 'medium', 
-        radius: 15000,
+        radius: 2000,
         category: 'food_rest',
         servicesOffered: ['Food Service', 'Takeaway', 'Basic Rest'],
         stopType: 'food_service',
@@ -178,7 +178,7 @@ class UnifiedDataCollectionService {
       'cafe': { 
         type: 'amenity', 
         priority: 'low', 
-        radius: 10000,
+        radius: 2000,
         category: 'food_rest',
         servicesOffered: ['Coffee', 'Snacks', 'WiFi', 'Rest Area'],
         stopType: 'cafe',
@@ -187,7 +187,7 @@ class UnifiedDataCollectionService {
       'lodging': { 
         type: 'amenity', 
         priority: 'high', 
-        radius: 30000,
+        radius: 2000,
         category: 'food_rest',
         servicesOffered: ['Accommodation', 'Food', 'Rest', 'Security'],
         stopType: 'lodging',
@@ -203,7 +203,7 @@ class UnifiedDataCollectionService {
       'bank': { 
         type: 'amenity', 
         priority: 'medium', 
-        radius: 20000,
+        radius: 2000,
         category: 'financial',
         servicesOffered: ['Cash Withdrawal', 'Deposits', 'Money Transfer', 'Account Services'],
         financialServices: ['Banking', 'ATM', 'Money Exchange', 'Loans'],
@@ -212,7 +212,7 @@ class UnifiedDataCollectionService {
       'atm': { 
         type: 'amenity', 
         priority: 'high', 
-        radius: 15000,
+        radius: 2000,
         category: 'financial',
         servicesOffered: ['Cash Withdrawal', 'Balance Inquiry', 'Mini Statement'],
         financialServices: ['24/7 Cash Withdrawal', 'Balance Check'],
@@ -222,7 +222,7 @@ class UnifiedDataCollectionService {
       'post_office': { 
         type: 'amenity', 
         priority: 'medium', 
-        radius: 25000,
+        radius: 2000,
         category: 'financial',
         servicesOffered: ['Mail Services', 'Money Order', 'Savings Account', 'Insurance'],
         financialServices: ['Postal Services', 'Money Transfer', 'Government Services'],
@@ -235,7 +235,7 @@ class UnifiedDataCollectionService {
       'bus_station': { 
         type: 'transport', 
         priority: 'medium', 
-        radius: 30000,
+        radius: 2000,
         category: 'transportation',
         servicesOffered: ['Bus Transport', 'Ticketing', 'Waiting Area', 'Information'],
         hubType: 'bus_station',
@@ -246,7 +246,7 @@ class UnifiedDataCollectionService {
       'train_station': { 
         type: 'transport', 
         priority: 'medium', 
-        radius: 40000,
+        radius: 2000,
         category: 'transportation',
         servicesOffered: ['Train Transport', 'Booking', 'Platform Access', 'Porters'],
         hubType: 'train_station',
@@ -257,7 +257,7 @@ class UnifiedDataCollectionService {
       'airport': { 
         type: 'transport', 
         priority: 'low', 
-        radius: 50000,
+        radius: 2000,
         category: 'transportation',
         servicesOffered: ['Air Transport', 'Check-in', 'Security', 'Customs'],
         hubType: 'airport',
@@ -268,7 +268,7 @@ class UnifiedDataCollectionService {
       'taxi_stand': { 
         type: 'transport', 
         priority: 'medium', 
-        radius: 15000,
+        radius: 2000,
         category: 'transportation',
         servicesOffered: ['Local Transport', 'Taxi Service', 'Auto Rickshaw'],
         hubType: 'taxi_stand',

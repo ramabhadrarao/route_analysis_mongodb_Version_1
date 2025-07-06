@@ -76,6 +76,13 @@ try {
   console.error('❌ Error loading network coverage routes:', error.message);
 }
 
+try {
+  const sharpTurnImageRoutes = require('./routes/sharpTurnImageDownloader');
+  app.use('/api/sharp-turn-images', sharpTurnImageRoutes);
+  console.log('✅ Sharp turn image download routes loaded');
+} catch (error) {
+  console.error('❌ Error loading sharp turn image routes:', error.message);
+}
 // Health check endpoint
 app.get('/health', (req, res) => {
   res.status(200).json({

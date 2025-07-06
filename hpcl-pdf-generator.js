@@ -1,0 +1,627 @@
+// hpcl-pdf-generator.js - Professional HPCL PDF Report Generator
+// Dependencies: pdfkit, fs, path
+// Author: HPCL Journey Risk Management System
+// Created: 2024
+
+const PDFDocument = require('pdfkit');
+const fs = require('fs');
+const path = require('path');
+
+class HPCLPDFGenerator {
+    constructor() {
+        // HPCL Color Scheme (matching Python version)
+        this.colors = {
+            primary: [0, 82, 147],      // HPCL Blue
+            secondary: [60, 60, 60],    // Dark Gray
+            danger: [220, 53, 69],      // Red
+            warning: [253, 126, 20],    // Orange
+            success: [40, 167, 69],     // Green
+            info: [0, 82, 147],         // HPCL Blue
+            lightGray: [245, 245, 245], // Light Gray
+            white: [255, 255, 255]      // White
+        };
+        
+        console.log('✅ HPCL PDF Generator initialized with professional styling');
+    }
+
+    /**
+     * Clean text to remove Unicode characters that might cause issues
+     * @param {string} text - Text to clean
+     * @returns {string} - Cleaned text
+     */
+    cleanTextForPdf(text) {
+        if (!text) return '';
+        
+        const unicodeReplacements = {
+            // Icons and symbols - CRITICAL FIXES
+            '\u2705': '[OK]',     // Check mark ✅
+            '\u2713': '[OK]',     // Checkmark ✓
+            '\u2717': '[X]',      // X mark ✗
+            '\u26A0': '[!]',      // Warning symbol ⚠
+            '\uD83D\uDCC4': '',   // Page icon 📄
+            '\uD83D\uDCCB': '',   // Clipboard 📋
+            '\uD83D\uDCC1': '',   // Folder 📁
+            '\uD83D\uDCF8': '',   // Camera 📸
+            '\uD83D\uDCCA': '',   // Chart 📊
+            '\u274C': '[ERROR]',  // Red X ❌
+            '\u26D4': '[STOP]',   // Stop sign ⛔
+            '\u00B0': ' deg',     // Degree symbol ° - CRITICAL FIX
+            '\u2192': '->',       // Right arrow →
+            '\u2190': '<-',       // Left arrow ←
+            '\u2191': '^',        // Up arrow ↑
+            '\u2193': 'v',        // Down arrow ↓
+            '\u2022': '*',        // Bullet point •
+            '\u2013': '-',        // En dash –
+            '\u2014': '--',       // Em dash —
+            '\u201C': '"',        // Left double quote "
+            '\u201D': '"',        // Right double quote "
+            '\u2018': "'",        // Left single quote '
+            '\u2019': "'",        // Right single quote '
+            '\u2026': '...',      // Ellipsis …
+        };
+        
+        let cleanedText = String(text);
+        
+        // Apply replacements
+        for (const [unicode, replacement] of Object.entries(unicodeReplacements)) {
+            cleanedText = cleanedText.replace(new RegExp(unicode, 'g'), replacement);
+        }
+        
+        // Remove any remaining non-ASCII characters
+        cleanedText = cleanedText.replace(/[^\x00-\x7F]/g, '?');
+        
+        return cleanedText;
+    }
+
+    /**
+     * Add HPCL header to the document
+     * @param {PDFDocument} doc - PDF document
+     * @param {number} pageNumber - Current page number
+     */
+    addHeader(doc, pageNumber = 1) {
+        if (pageNumber === 1) {
+            // Title page header - more prominent
+            doc.rect(0, 0, doc.page.width, 90)
+               .fill(this.colors.primary);
+            
+            // HPCL Logo placeholder (you can add actual logo here)
+            doc.fontSize(20)
+               .fill('white')
+               .text('HINDUSTAN PETROLEUM CORPORATION LIMITED', 65, 20, { width: 400 });
+            
+            doc.fontSize(12)
+               .text('Journey Risk Management Division', 65, 45);
+            
+            doc.fontSize(10)
+               .text('Powered by Route Analytics Pro - AI Intelligence Platform', 65, 60);
+        } else {
+            // Regular page header
+            doc.rect(0, 0, doc.page.width, 25)
+               .fill(this.colors.primary);
+            
+            doc.fontSize(12)
+               .fill('white')
+               .text('HPCL - Journey Risk Management Study (AI-Powered Analysis)', 10, 8);
+            
+            doc.fontSize(8)
+               .text(`Page ${pageNumber}`, doc.page.width - 60, 8);
+            
+            doc.text(new Date().toLocaleDateString('en-US', { 
+                year: 'numeric', 
+                month: 'long', 
+                day: 'numeric' 
+            }), doc.page.width - 100, 16);
+        }
+    }
+
+    /**
+     * Add footer to the document
+     * @param {PDFDocument} doc - PDF document
+     */
+    addFooter(doc) {
+        const footerY = doc.page.height - 30;
+        
+        // Footer line
+        doc.strokeColor('black')
+           .lineWidth(0.5)
+           .moveTo(10, footerY)
+           .lineTo(doc.page.width - 10, footerY)
+           .stroke();
+        
+        // Footer text
+        doc.fontSize(8)
+           .fillColor(this.colors.primary)
+           .text('Generated by HPCL Journey Risk Management System - Enhanced Analysis', 
+                 0, footerY + 5, { align: 'center', width: doc.page.width });
+        
+        // Confidentiality notice
+        doc.fontSize(7)
+           .fillColor([100, 100, 100])
+           .text('CONFIDENTIAL - For Internal Use Only', 
+                 0, footerY + 15, { align: 'center', width: doc.page.width });
+    }
+
+    /**
+     * Add section header with professional styling
+     * @param {PDFDocument} doc - PDF document
+     * @param {string} title - Section title
+     * @param {string} colorType - Color type (primary, danger, success, warning, info)
+     */
+    addSectionHeader(doc, title, colorType = 'primary') {
+        const cleanTitle = this.cleanTextForPdf(title);
+        const color = this.colors[colorType] || this.colors.primary;
+        
+        // Check if we need a new page
+        if (doc.y > 700) {
+            doc.addPage();
+            this.addHeader(doc, 2); // Non-title page header
+            doc.y = 40;
+        }
+        
+        // Section header background
+        doc.rect(10, doc.y, doc.page.width - 20, 18)
+           .fill(color);
+        
+        // Header text
+        doc.fontSize(16)
+           .fill('white')
+           .text(cleanTitle, 15, doc.y + 4, { width: doc.page.width - 30 });
+        
+        doc.y += 28; // Move down after header
+    }
+
+    /**
+     * Create enhanced table with professional styling
+     * @param {PDFDocument} doc - PDF document
+     * @param {Array} data - Table data [['label', 'value'], ...]
+     * @param {Array} colWidths - Column widths [80, 100]
+     */
+    createDetailedTable(doc, data, colWidths = [200, 300]) {
+        const startY = doc.y;
+        const rowHeight = 25;
+        
+        data.forEach((row, index) => {
+            // Check if we need a new page
+            if (doc.y > 700) {
+                doc.addPage();
+                this.addHeader(doc, 2);
+                doc.y = 40;
+            }
+            
+            const currentY = doc.y;
+            
+            // Alternating row colors
+            const fillColor = index % 2 === 0 ? this.colors.lightGray : this.colors.white;
+            doc.rect(10, currentY, colWidths[0] + colWidths[1], rowHeight)
+               .fill(fillColor);
+            
+            // First column (bold label)
+            doc.fontSize(10)
+               .fill('black')
+               .font('Helvetica-Bold')
+               .text(this.cleanTextForPdf(row[0]), 15, currentY + 8, { 
+                   width: colWidths[0] - 10 
+               });
+            
+            // Second column (value)
+            doc.font('Helvetica')
+               .text(this.cleanTextForPdf(row[1]), 15 + colWidths[0], currentY + 8, { 
+                   width: colWidths[1] - 10 
+               });
+            
+            // Border
+            doc.strokeColor('black')
+               .lineWidth(0.5)
+               .rect(10, currentY, colWidths[0] + colWidths[1], rowHeight)
+               .stroke();
+            
+            doc.y = currentY + rowHeight;
+        });
+        
+        doc.y += 10; // Add space after table
+    }
+
+    /**
+     * Create table header
+     * @param {PDFDocument} doc - PDF document
+     * @param {Array} headers - Header texts
+     * @param {Array} colWidths - Column widths
+     */
+    createTableHeader(doc, headers, colWidths) {
+        const headerHeight = 20;
+        const currentY = doc.y;
+        
+        // Header background
+        doc.rect(10, currentY, colWidths.reduce((a, b) => a + b, 0), headerHeight)
+           .fill([173, 216, 230]); // Light blue
+        
+        // Header texts
+        let xPos = 10;
+        headers.forEach((header, index) => {
+            doc.fontSize(9)
+               .fill('black')
+               .font('Helvetica-Bold')
+               .text(this.cleanTextForPdf(header), xPos + 5, currentY + 6, { 
+                   width: colWidths[index] - 10,
+                   align: 'center'
+               });
+            xPos += colWidths[index];
+        });
+        
+        // Header border
+        doc.strokeColor('black')
+           .lineWidth(0.5)
+           .rect(10, currentY, colWidths.reduce((a, b) => a + b, 0), headerHeight)
+           .stroke();
+        
+        doc.y = currentY + headerHeight;
+    }
+
+    /**
+     * Create table row
+     * @param {PDFDocument} doc - PDF document
+     * @param {Array} rowData - Row data
+     * @param {Array} colWidths - Column widths
+     */
+    createTableRow(doc, rowData, colWidths) {
+        // Check if we need a new page
+        if (doc.y > 720) {
+            doc.addPage();
+            this.addHeader(doc, 2);
+            doc.y = 40;
+        }
+        
+        const rowHeight = 16;
+        const currentY = doc.y;
+        
+        // Row background
+        doc.rect(10, currentY, colWidths.reduce((a, b) => a + b, 0), rowHeight)
+           .fill(this.colors.white);
+        
+        // Row data
+        let xPos = 10;
+        rowData.forEach((cell, index) => {
+            const maxChars = Math.max(Math.floor(colWidths[index] / 6), 8);
+            const cellText = this.cleanTextForPdf(String(cell)).substring(0, maxChars);
+            
+            doc.fontSize(8)
+               .fill('black')
+               .font('Helvetica')
+               .text(cellText, xPos + 2, currentY + 4, { 
+                   width: colWidths[index] - 4 
+               });
+            xPos += colWidths[index];
+        });
+        
+        // Row border
+        doc.strokeColor('black')
+           .lineWidth(0.5)
+           .rect(10, currentY, colWidths.reduce((a, b) => a + b, 0), rowHeight)
+           .stroke();
+        
+        doc.y = currentY + rowHeight;
+    }
+
+    /**
+     * Add status indicator bar
+     * @param {PDFDocument} doc - PDF document
+     * @param {string} status - Status text
+     * @param {string} colorType - Color type
+     * @param {number} score - Score (optional)
+     */
+    addStatusIndicator(doc, status, colorType = 'success', score = null) {
+        const color = this.colors[colorType] || this.colors.success;
+        const currentY = doc.y;
+        
+        // Status bar background
+        doc.rect(10, currentY, doc.page.width - 20, 20)
+           .fill(color);
+        
+        // Status text
+        const statusText = score !== null ? 
+            `${this.cleanTextForPdf(status)} (${score}/100)` : 
+            this.cleanTextForPdf(status);
+        
+        doc.fontSize(12)
+           .fill('white')
+           .font('Helvetica-Bold')
+           .text(statusText, 0, currentY + 6, { 
+               align: 'center', 
+               width: doc.page.width 
+           });
+        
+        doc.y = currentY + 30;
+    }
+
+    /**
+     * Generate a comprehensive sample HPCL route analysis report
+     * @param {string} outputPath - Output file path
+     */
+    generateSampleReport(outputPath = 'hpcl-route-analysis-sample.pdf') {
+        console.log('📄 Generating HPCL Route Analysis Sample Report...');
+        
+        const doc = new PDFDocument({ 
+            margin: 0,
+            size: 'A4',
+            info: {
+                Title: 'HPCL Journey Risk Management Analysis',
+                Author: 'HPCL Journey Risk Management System',
+                Subject: 'Route Safety Analysis Report',
+                Keywords: 'HPCL, Route Analysis, Safety, Transport'
+            }
+        });
+
+        // Create write stream
+        const stream = fs.createWriteStream(outputPath);
+        doc.pipe(stream);
+
+        // ===================
+        // TITLE PAGE
+        // ===================
+        this.addHeader(doc, 1);
+        
+        // Main title section
+        doc.y = 120;
+        doc.fontSize(28)
+           .fillColor(this.colors.primary)
+           .font('Helvetica-Bold')
+           .text('COMPREHENSIVE JOURNEY RISK', 0, doc.y, { align: 'center', width: doc.page.width });
+        
+        doc.y += 35;
+        doc.text('MANAGEMENT ANALYSIS REPORT', 0, doc.y, { align: 'center', width: doc.page.width });
+        
+        // Subtitle
+        doc.y += 30;
+        doc.fontSize(16)
+           .fillColor(this.colors.secondary)
+           .font('Helvetica')
+           .text('Enhanced with Artificial Intelligence & Multi-API Analysis', 0, doc.y, { align: 'center', width: doc.page.width });
+        
+        // Route details box
+        doc.y += 40;
+        doc.strokeColor('black')
+           .lineWidth(0.5)
+           .rect(50, doc.y, doc.page.width - 100, 120)
+           .stroke();
+        
+        doc.fontSize(16)
+           .fillColor(this.colors.primary)
+           .font('Helvetica-Bold')
+           .text('📋 ROUTE ANALYSIS DETAILS', 60, doc.y + 10);
+        
+        const routeDetails = [
+            'Supply Location: MEERUT DEPOT [1146]',
+            'Destination: MOTI FILLING STATION [0041025372]',
+            'Total Distance: 89.2 km',
+            'Estimated Duration: 2 hours 15 minutes',
+            `Analysis Date: ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}`,
+            `Report Generated: ${new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}`
+        ];
+        
+        doc.fontSize(11)
+           .fillColor([60, 60, 60])
+           .font('Helvetica');
+        
+        let detailY = doc.y + 35;
+        routeDetails.forEach(detail => {
+            doc.text(this.cleanTextForPdf(detail), 60, detailY);
+            detailY += 12;
+        });
+
+        // ===================
+        // ROUTE OVERVIEW PAGE
+        // ===================
+        doc.addPage();
+        this.addHeader(doc, 2);
+        doc.y = 40;
+        
+        this.addSectionHeader(doc, 'COMPREHENSIVE ROUTE OVERVIEW & STATISTICS', 'info');
+        
+        // Route Information Table
+        doc.fontSize(14)
+           .fillColor(this.colors.info)
+           .font('Helvetica-Bold')
+           .text('ROUTE INFORMATION', 10, doc.y);
+        
+        doc.y += 20;
+        
+        const routeInfoData = [
+            ['Supply Location', 'MEERUT DEPOT [1146]'],
+            ['Destination', 'MOTI FILLING STATION [0041025372]'],
+            ['Distance', '89.2 km'],
+            ['Duration', '2 hours 15 minutes'],
+            ['Major Highways', 'NH-58, SH-57 (Delhi-Haridwar Highway)'],
+            ['Terrain', 'Mixed Urban and Rural Plains']
+        ];
+        
+        this.createDetailedTable(doc, routeInfoData, [200, 300]);
+        
+        // Route Statistics
+        doc.fontSize(14)
+           .fillColor(this.colors.info)
+           .font('Helvetica-Bold')
+           .text('ROUTE ANALYSIS STATISTICS', 10, doc.y);
+        
+        doc.y += 20;
+        
+        const statsData = [
+            ['Sharp Turns Detected', '12 turns'],
+            ['Critical Turns (≥70°)', '3 high-risk turns'],
+            ['Major Highways', '2 highway segments'],
+            ['Highway Length', '67.8 km'],
+            ['Emergency Services', '8 facilities identified'],
+            ['Fuel Stations', '15 stations available']
+        ];
+        
+        this.createDetailedTable(doc, statsData, [200, 300]);
+
+        // ===================
+        // SAFETY COMPLIANCE PAGE
+        // ===================
+        doc.addPage();
+        this.addHeader(doc, 3);
+        doc.y = 40;
+        
+        this.addSectionHeader(doc, 'KEY SAFETY MEASURES & REGULATORY COMPLIANCE', 'warning');
+        
+        const safetyData = [
+            ['Speed Limits', 'NH: 60 km/h; SH: 55 km/h; Urban: 40 km/h; Rural: 25-30 km/h'],
+            ['Night Driving', 'Prohibited: 00:00-06:00 hrs'],
+            ['Rest Breaks', 'Mandatory 20-30 min every 2.5 hours (4+ hour journey)'],
+            ['Vehicle Compliance', 'Check brakes, tires, lights, engine cooling system'],
+            ['Permits & Documents', 'Valid transport permits, Hazardous vehicle license, MSDS sheets'],
+            ['VTS Requirement', 'VTS device shall be functional (Mandatory for NH routes)']
+        ];
+        
+        this.createDetailedTable(doc, safetyData, [150, 350]);
+        
+        // Safety status indicator
+        this.addStatusIndicator(doc, 'ROUTE SAFETY STATUS: GOOD CONDITIONS', 'success');
+
+        // ===================
+        // CRITICAL TURNS ANALYSIS PAGE
+        // ===================
+        doc.addPage();
+        this.addHeader(doc, 4);
+        doc.y = 40;
+        
+        this.addSectionHeader(doc, 'SHARP TURNS ANALYSIS WITH VISUAL EVIDENCE', 'danger');
+        
+        // Sharp turns summary
+        const turnsStatsData = [
+            ['Total Sharp Turns Detected', '12'],
+            ['Extreme Danger Turns (≥90 deg)', '1'],
+            ['High-Risk Blind Spots (80-90 deg)', '2'],
+            ['Sharp Danger Zones (70-80 deg)', '3'],
+            ['Moderate Risk Turns (45-70 deg)', '6'],
+            ['Most Dangerous Turn Angle', '92.3 deg'],
+            ['Average Turn Angle', '58.7 deg'],
+            ['Street View Images Available', '8'],
+            ['Satellite Images Available', '6'],
+            ['Total Visual Evidence Files', '14']
+        ];
+        
+        this.createDetailedTable(doc, turnsStatsData, [200, 300]);
+        
+        // Visual evidence status
+        this.addStatusIndicator(doc, 'VISUAL EVIDENCE STATUS: GOOD VISUAL EVIDENCE (14 images)', 'info');
+        
+        // Turn classification table
+        doc.fontSize(12)
+           .fillColor(this.colors.danger)
+           .font('Helvetica-Bold')
+           .text('TURN CLASSIFICATION SYSTEM', 10, doc.y);
+        
+        doc.y += 15;
+        
+        const classificationHeaders = ['Angle Range', 'Classification', 'Risk Level', 'Max Speed', 'Safety Requirement'];
+        const classificationWidths = [80, 120, 80, 80, 150];
+        
+        this.createTableHeader(doc, classificationHeaders, classificationWidths);
+        
+        const classificationData = [
+            ['≥90 deg', 'EXTREME BLIND SPOT', 'CRITICAL', '15 km/h', 'Full stop may be required'],
+            ['80-90 deg', 'HIGH-RISK BLIND SPOT', 'EXTREME', '20 km/h', 'Extreme caution required'],
+            ['70-80 deg', 'BLIND SPOT', 'HIGH', '25 km/h', 'High caution required'],
+            ['60-70 deg', 'HIGH-ANGLE TURN', 'MEDIUM', '30 km/h', 'Moderate caution required'],
+            ['45-60 deg', 'SHARP TURN', 'LOW', '40 km/h', 'Normal caution required']
+        ];
+        
+        classificationData.forEach(row => {
+            this.createTableRow(doc, row, classificationWidths);
+        });
+
+        // ===================
+        // EMERGENCY PREPAREDNESS PAGE
+        // ===================
+        doc.addPage();
+        this.addHeader(doc, 5);
+        doc.y = 40;
+        
+        this.addSectionHeader(doc, 'EMERGENCY PREPAREDNESS ANALYSIS', 'danger');
+        
+        // Emergency preparedness score
+        this.addStatusIndicator(doc, 'EMERGENCY PREPAREDNESS: GOOD PREPAREDNESS', 'info', 75);
+        
+        // Emergency services table
+        doc.fontSize(12)
+           .fillColor(this.colors.primary)
+           .font('Helvetica-Bold')
+           .text('EMERGENCY SERVICES AVAILABILITY ASSESSMENT', 10, doc.y);
+        
+        doc.y += 15;
+        
+        const emergencyData = [
+            ['Medical Facilities (Hospitals)', '3 facilities identified'],
+            ['Law Enforcement (Police)', '4 stations identified'],
+            ['Fire & Rescue Services', '2 stations identified'],
+            ['Emergency Contact Reliability', '85% coverage along route'],
+            ['Communication Dead Zones', '2 critical areas'],
+            ['Overall Service Coverage', 'Good emergency response capability']
+        ];
+        
+        this.createDetailedTable(doc, emergencyData, [200, 300]);
+        
+        // Critical emergency contacts
+        doc.fontSize(12)
+           .fillColor(this.colors.danger)
+           .font('Helvetica-Bold')
+           .text('CRITICAL EMERGENCY CONTACT NUMBERS', 10, doc.y);
+        
+        doc.y += 15;
+        
+        const contactHeaders = ['Emergency Service', 'Contact Number', 'When to Call'];
+        const contactWidths = [150, 100, 250];
+        
+        this.createTableHeader(doc, contactHeaders, contactWidths);
+        
+        const contactData = [
+            ['National Emergency', '112', 'Any life-threatening emergency'],
+            ['Police Emergency', '100', 'Crime, accidents, security threats'],
+            ['Fire Services', '101', 'Fire, rescue, hazmat incidents'],
+            ['Medical Emergency', '108', 'Medical emergencies, injuries'],
+            ['Highway Patrol', '1033', 'Highway accidents, breakdowns']
+        ];
+        
+        contactData.forEach(row => {
+            this.createTableRow(doc, row, contactWidths);
+        });
+
+        // Add footer to all pages
+        this.addFooter(doc);
+
+        // Finalize the PDF
+        doc.end();
+
+        // Handle completion
+        stream.on('finish', () => {
+            console.log(`✅ HPCL PDF Report generated successfully: ${outputPath}`);
+            console.log(`📊 Total pages: 5`);
+            console.log(`🎯 Report includes: Title, Overview, Safety, Turns Analysis, Emergency Preparedness`);
+        });
+
+        stream.on('error', (err) => {
+            console.error(`❌ Error generating PDF: ${err.message}`);
+        });
+
+        return outputPath;
+    }
+}
+
+// Usage Example and Export
+module.exports = HPCLPDFGenerator;
+
+// Example usage:
+if (require.main === module) {
+    const generator = new HPCLPDFGenerator();
+    generator.generateSampleReport('hpcl-route-analysis-sample.pdf');
+}
+
+// Package.json dependencies needed:
+/*
+{
+  "dependencies": {
+    "pdfkit": "^0.13.0"
+  }
+}
+*/
