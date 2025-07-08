@@ -112,7 +112,86 @@ try {
 } catch (error) {
   console.error('❌ Error loading PDF routes:', error.message);
 }
+// 1. Route Basic Info Routes
+try {
+  const routeBasicInfoRoutes = require('./routes/routeBasicInfo');
+  app.use('/api/routes', routeBasicInfoRoutes);
+  console.log('✅ Route basic info routes loaded');
+} catch (error) {
+  console.error('❌ Error loading route basic info routes:', error.message);
+}
 
+// 2. Risk Factors Routes
+try {
+  const riskFactorsRoutes = require('./routes/riskFactors');
+  app.use('/api/routes', riskFactorsRoutes);
+  console.log('✅ Risk factors routes loaded');
+} catch (error) {
+  console.error('❌ Error loading risk factors routes:', error.message);
+}
+
+// 3. High Risk Zones Routes
+try {
+  const highRiskZonesRoutes = require('./routes/highRiskZones');
+  app.use('/api/routes', highRiskZonesRoutes);
+  console.log('✅ High risk zones routes loaded');
+} catch (error) {
+  console.error('❌ Error loading high risk zones routes:', error.message);
+}
+
+// 4. Emergency Services Routes
+try {
+  const emergencyServicesRoutes = require('./routes/emergencyServices');
+  app.use('/api/routes', emergencyServicesRoutes);
+  console.log('✅ Emergency services routes loaded');
+} catch (error) {
+  console.error('❌ Error loading emergency services routes:', error.message);
+}
+
+// 5. Seasonal Conditions Routes
+try {
+  const seasonalConditionsRoutes = require('./routes/seasonalConditions');
+  app.use('/api/routes', seasonalConditionsRoutes);
+  console.log('✅ Seasonal conditions routes loaded');
+} catch (error) {
+  console.error('❌ Error loading seasonal conditions routes:', error.message);
+}
+
+// 6. Communication Coverage Routes
+try {
+  const communicationCoverageRoutes = require('./routes/communicationCoverage');
+  app.use('/api/routes', communicationCoverageRoutes);
+  console.log('✅ Communication coverage routes loaded');
+} catch (error) {
+  console.error('❌ Error loading communication coverage routes:', error.message);
+}
+
+// 7. Compliance Routes
+try {
+  const complianceRoutes = require('./routes/compliance');
+  app.use('/api/routes', complianceRoutes);
+  console.log('✅ Compliance routes loaded');
+} catch (error) {
+  console.error('❌ Error loading compliance routes:', error.message);
+}
+
+// 8. Terrain & Traffic Routes
+try {
+  const terrainTrafficRoutes = require('./routes/terrainTraffic');
+  app.use('/api/routes', terrainTrafficRoutes);
+  console.log('✅ Terrain & traffic routes loaded');
+} catch (error) {
+  console.error('❌ Error loading terrain & traffic routes:', error.message);
+}
+
+// 9. Weather Analysis Routes
+try {
+  const weatherAnalysisRoutes = require('./routes/weatherAnalysis');
+  app.use('/api/routes', weatherAnalysisRoutes);
+  console.log('✅ Weather analysis routes loaded');
+} catch (error) {
+  console.error('❌ Error loading weather analysis routes:', error.message);
+}
 // ============================================================================
 // ✅ NEW: PDF DATA ROUTES FOR JOURNEY RISK REPORT
 // ============================================================================
