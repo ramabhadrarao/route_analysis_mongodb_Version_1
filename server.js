@@ -1,5 +1,5 @@
-// INTEGRATION GUIDE: Enhanced Visibility Image Downloader
-// File: server.js (UPDATED VERSION)
+// File: server.js (UPDATED VERSION WITH PDF DATA ROUTES)
+// Purpose: Complete HPCL Journey Risk Management Server with PDF Data Routes
 
 const express = require('express');
 const mongoose = require('mongoose');
@@ -25,6 +25,10 @@ mongoose.connect(process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/hpcl_jour
   console.error('❌ MongoDB connection error:', error);
   process.exit(1);
 });
+
+// ============================================================================
+// EXISTING ROUTES (Keep all existing functionality)
+// ============================================================================
 
 // Import routes with error handling
 try {
@@ -84,7 +88,7 @@ try {
   console.error('❌ Error loading sharp turn image routes:', error.message);
 }
 
-// ✅ NEW: Enhanced Visibility Image Downloader (Sharp Turns + Blind Spots)
+// Enhanced Visibility Image Downloader (Sharp Turns + Blind Spots)
 try {
   const visibilityImageRoutes = require('./routes/visibilityImageDownloader');
   app.use('/api/visibility-images', visibilityImageRoutes);
@@ -109,10 +113,42 @@ try {
   console.error('❌ Error loading PDF routes:', error.message);
 }
 
+// ============================================================================
+// ✅ NEW: PDF DATA ROUTES FOR JOURNEY RISK REPORT
+// ============================================================================
+
+// Main PDF Data Routes - Core endpoints for PDF generation
+try {
+  const pdfDataRoutes = require('./routes/pdfDataRoutes');
+  app.use('/api/routes', pdfDataRoutes);
+  console.log('✅ PDF Data routes loaded');
+  console.log('   📊 Basic route info, risk factors, high-risk zones');
+  console.log('   🌦️  Seasonal conditions, weather analysis');
+  console.log('   🚑 Emergency services (medical, police, fire, fuel, educational)');
+} catch (error) {
+  console.error('❌ Error loading PDF data routes:', error.message);
+}
+
+// Additional PDF Routes - Specialized analysis endpoints
+try {
+  const additionalPdfRoutes = require('./routes/additionalPdfRoutes');
+  app.use('/api/routes', additionalPdfRoutes);
+  console.log('✅ Additional PDF routes loaded');
+  console.log('   📡 Communication coverage analysis');
+  console.log('   🛣️  Road quality & environmental risks');
+  console.log('   🏔️  Terrain & traffic analysis');
+  console.log('   📋 Compliance requirements');
+} catch (error) {
+  console.error('❌ Error loading additional PDF routes:', error.message);
+}
+
 // Static file serving for downloaded images
 app.use('/downloads', express.static('downloads'));
 
-// Health check endpoint
+// ============================================================================
+// HEALTH CHECK ENDPOINT (UPDATED)
+// ============================================================================
+
 app.get('/health', (req, res) => {
   res.status(200).json({
     status: 'OK',
@@ -121,17 +157,24 @@ app.get('/health', (req, res) => {
     services: {
       database: 'connected',
       networkCoverage: 'available',
-      visibilityImages: 'available' // ✅ NEW
+      visibilityImages: 'available',
+      pdfDataRoutes: 'available', // ✅ NEW
+      emergencyServices: 'available', // ✅ NEW
+      riskAnalysis: 'available' // ✅ NEW
     }
   });
 });
 
-// Root endpoint with updated API list
+// ============================================================================
+// ROOT ENDPOINT (UPDATED WITH NEW API ENDPOINTS)
+// ============================================================================
+
 app.get('/', (req, res) => {
   res.json({
     message: 'HPCL Journey Risk Management System API',
-    version: '2.1.0', // ✅ Updated version
+    version: '3.0.0', // ✅ Updated version for PDF data routes
     endpoints: {
+      // Existing endpoints
       auth: '/api/auth',
       routes: '/api/routes',
       risk: '/api/risk',
@@ -139,31 +182,58 @@ app.get('/', (req, res) => {
       visibility: '/api/visibility',
       networkCoverage: '/api/network-coverage',
       enhancedRoadConditions: '/api/enhanced-road-conditions',
-      sharpTurnImages: '/api/sharp-turn-images', // Legacy
-      visibilityImages: '/api/visibility-images', // ✅ NEW Enhanced
+      sharpTurnImages: '/api/sharp-turn-images',
+      visibilityImages: '/api/visibility-images',
       pdf: '/api/pdf',
       health: '/health'
     },
     
-    // ✅ NEW: Enhanced Visibility Image Endpoints
-    visibilityImageEndpoints: {
-      // Comprehensive Downloads
-      downloadAllImages: 'POST /api/visibility-images/routes/:routeId/download-all-images',
+    // ✅ NEW: PDF Data Endpoints for Journey Risk Report
+    pdfDataEndpoints: {
+      // Basic Route Information
+      basicInfo: 'GET /api/routes/:routeId/basic-info',
+      safetyMeasures: 'GET /api/routes/:routeId/safety-measures',
       
-      // Individual Type Downloads  
+      // Risk Analysis
+      riskFactors: 'GET /api/routes/:routeId/risk-factors',
+      highRiskZones: 'GET /api/routes/:routeId/high-risk-zones',
+      criticalPoints: 'GET /api/routes/:routeId/critical-points',
+      
+      // Weather & Seasonal Analysis
+      seasonalConditions: 'GET /api/routes/:routeId/seasonal-conditions',
+      weatherAnalysis: 'GET /api/routes/:routeId/weather-analysis',
+      
+      // Emergency Services (All Types)
+      emergencyServices: 'GET /api/routes/:routeId/emergency-services',
+      medicalFacilities: 'GET /api/routes/:routeId/medical-facilities',
+      policeStations: 'GET /api/routes/:routeId/police-stations',
+      fireStations: 'GET /api/routes/:routeId/fire-stations',
+      fuelStations: 'GET /api/routes/:routeId/fuel-stations',
+      educationalInstitutions: 'GET /api/routes/:routeId/educational-institutions',
+      foodRestStops: 'GET /api/routes/:routeId/food-rest-stops',
+      emergencyContacts: 'GET /api/routes/:routeId/emergency-contacts',
+      
+      // Infrastructure & Analysis
+      communicationCoverage: 'GET /api/routes/:routeId/communication-coverage',
+      roadQuality: 'GET /api/routes/:routeId/road-quality',
+      environmentalRisks: 'GET /api/routes/:routeId/environmental-risks',
+      terrainAnalysis: 'GET /api/routes/:routeId/terrain-analysis',
+      trafficAnalysis: 'GET /api/routes/:routeId/traffic-analysis',
+      complianceRequirements: 'GET /api/routes/:routeId/compliance-requirements'
+    },
+    
+    // Enhanced Visibility Image Endpoints (Existing)
+    visibilityImageEndpoints: {
+      downloadAllImages: 'POST /api/visibility-images/routes/:routeId/download-all-images',
       downloadSharpTurns: 'POST /api/visibility-images/routes/:routeId/download-sharp-turns',
       downloadBlindSpots: 'POST /api/visibility-images/routes/:routeId/download-blind-spots',
-      
-      // Management & Status
       getImageStatus: 'GET /api/visibility-images/routes/:routeId/image-status',
       syncDatabase: 'POST /api/visibility-images/routes/:routeId/sync-database',
       deleteAllImages: 'DELETE /api/visibility-images/routes/:routeId/delete-all-images',
-      
-      // Reports
       getDownloadReport: 'GET /api/visibility-images/routes/:routeId/download-report'
     },
     
-    // Existing endpoints...
+    // Network Coverage Endpoints (Existing)
     networkCoverageEndpoints: {
       analyzeRoute: 'POST /api/network-coverage/routes/:routeId/analyze',
       getOverview: 'GET /api/network-coverage/routes/:routeId/overview',
@@ -176,6 +246,7 @@ app.get('/', (req, res) => {
       deleteData: 'DELETE /api/network-coverage/routes/:routeId'
     },
     
+    // Enhanced Road Conditions Endpoints (Existing)
     enhancedRoadConditionsEndpoints: {
       analyzeRoute: 'POST /api/enhanced-road-conditions/routes/:routeId/analyze',
       getOverview: 'GET /api/enhanced-road-conditions/routes/:routeId/overview',
@@ -188,6 +259,10 @@ app.get('/', (req, res) => {
     }
   });
 });
+
+// ============================================================================
+// ERROR HANDLERS
+// ============================================================================
 
 // 404 handler
 app.use('*', (req, res) => {
@@ -203,9 +278,16 @@ app.use('*', (req, res) => {
       '/api/network-coverage',
       '/api/enhanced-road-conditions',
       '/api/sharp-turn-images',
-      '/api/visibility-images', // ✅ NEW
+      '/api/visibility-images',
       '/api/pdf',
       '/health'
+    ],
+    newPdfEndpoints: [
+      '/api/routes/:routeId/basic-info',
+      '/api/routes/:routeId/risk-factors',
+      '/api/routes/:routeId/high-risk-zones',
+      '/api/routes/:routeId/emergency-services',
+      '/api/routes/:routeId/communication-coverage'
     ]
   });
 });
@@ -220,14 +302,17 @@ app.use((err, req, res, next) => {
   });
 });
 
-// Start server
+// ============================================================================
+// START SERVER WITH UPDATED CONSOLE OUTPUT
+// ============================================================================
+
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`🚀 HPCL Journey Risk Management Server running on port ${PORT}`);
   console.log(`📊 Environment: ${process.env.NODE_ENV || 'development'}`);
   console.log(`🔗 API Base URL: http://localhost:${PORT}`);
   console.log('');
-  console.log('Available API Endpoints:');
+  console.log('📋 Available API Endpoints:');
   console.log('├── Authentication: /api/auth');
   console.log('├── Routes: /api/routes');
   console.log('├── Risk Assessment: /api/risk');
@@ -236,92 +321,35 @@ app.listen(PORT, () => {
   console.log('├── Network Coverage: /api/network-coverage');
   console.log('├── Enhanced Road Conditions: /api/enhanced-road-conditions');
   console.log('├── Sharp Turn Images (Legacy): /api/sharp-turn-images');
-  console.log('├── Visibility Images (Enhanced): /api/visibility-images ✨ NEW');
+  console.log('├── Visibility Images (Enhanced): /api/visibility-images');
   console.log('├── PDF Generation: /api/pdf');
   console.log('└── Health Check: /health');
   console.log('');
-  console.log('✨ NEW FEATURE: Enhanced Visibility Image Downloader');
-  console.log('   📸 Download images for both Sharp Turns AND Blind Spots');
-  console.log('   🎯 Comprehensive filtering and quality options');
-  console.log('   💾 Automatic database synchronization');
-  console.log('   📊 Detailed status reporting and management');
+  console.log('🆕 NEW: PDF Data Routes for Journey Risk Report');
+  console.log('├── 📊 Basic Info: /api/routes/:routeId/basic-info');
+  console.log('├── ⚠️  Risk Factors: /api/routes/:routeId/risk-factors');
+  console.log('├── 🚨 High-Risk Zones: /api/routes/:routeId/high-risk-zones');
+  console.log('├── 🌦️  Seasonal Conditions: /api/routes/:routeId/seasonal-conditions');
+  console.log('├── 🚑 Emergency Services: /api/routes/:routeId/emergency-services');
+  console.log('├── 🏥 Medical Facilities: /api/routes/:routeId/medical-facilities');
+  console.log('├── 👮 Police Stations: /api/routes/:routeId/police-stations');
+  console.log('├── 🚒 Fire Stations: /api/routes/:routeId/fire-stations');
+  console.log('├── ⛽ Fuel Stations: /api/routes/:routeId/fuel-stations');
+  console.log('├── 🏫 Educational Institutions: /api/routes/:routeId/educational-institutions');
+  console.log('├── 📡 Communication Coverage: /api/routes/:routeId/communication-coverage');
+  console.log('├── 🛣️  Road Quality: /api/routes/:routeId/road-quality');
+  console.log('├── 🌍 Environmental Risks: /api/routes/:routeId/environmental-risks');
+  console.log('├── 🏔️  Terrain Analysis: /api/routes/:routeId/terrain-analysis');
+  console.log('├── 🚦 Traffic Analysis: /api/routes/:routeId/traffic-analysis');
+  console.log('└── 📋 Compliance Requirements: /api/routes/:routeId/compliance-requirements');
+  console.log('');
+  console.log('🎯 QUICK TEST COMMANDS:');
+  console.log(`curl http://localhost:${PORT}/api/routes/YOUR_ROUTE_ID/basic-info`);
+  console.log(`curl http://localhost:${PORT}/api/routes/YOUR_ROUTE_ID/risk-factors`);
+  console.log(`curl http://localhost:${PORT}/api/routes/YOUR_ROUTE_ID/emergency-services`);
+  console.log('');
+  console.log('📚 Full API Documentation: Check the comprehensive API docs for data structures');
+  console.log('🔄 All endpoints support JSON response format for PDF generation integration');
 });
 
 module.exports = app;
-
-// ============================================================================
-// API USAGE EXAMPLES FOR ENHANCED VISIBILITY IMAGE DOWNLOADER
-// ============================================================================
-
-/*
-
-🔥 EXAMPLE USAGE:
-
-1. COMPREHENSIVE DOWNLOAD (Sharp Turns + Blind Spots):
-   POST http://localhost:3000/api/visibility-images/routes/686bb57ee66a4a39825fc854/download-all-images
-   Body: {
-     "imageTypes": ["street_view", "satellite", "roadmap"],
-     "quality": "high",
-     "updateDatabase": true,
-     "includeSharpTurns": true,
-     "includeBlindSpots": true,
-     "riskThreshold": 6.0
-   }
-
-2. SHARP TURNS ONLY:
-   POST http://localhost:3000/api/visibility-images/routes/686bb57ee66a4a39825fc854/download-sharp-turns
-   Body: {
-     "imageTypes": ["street_view", "satellite"],
-     "quality": "high",
-     "riskThreshold": 7.0
-   }
-
-3. BLIND SPOTS ONLY:
-   POST http://localhost:3000/api/visibility-images/routes/686bb57ee66a4a39825fc854/download-blind-spots
-   Body: {
-     "imageTypes": ["street_view", "satellite"],
-     "quality": "high", 
-     "riskThreshold": 6.0
-   }
-
-4. CHECK IMAGE STATUS:
-   GET http://localhost:3000/api/visibility-images/routes/686bb57ee66a4a39825fc854/image-status
-
-5. SYNC DATABASE WITH EXISTING FILES:
-   POST http://localhost:3000/api/visibility-images/routes/686bb57ee66a4a39825fc854/sync-database
-
-6. DOWNLOAD REPORT:
-   GET http://localhost:3000/api/visibility-images/routes/686bb57ee66a4a39825fc854/download-report
-
-7. DELETE ALL IMAGES:
-   DELETE http://localhost:3000/api/visibility-images/routes/686bb57ee66a4a39825fc854/delete-all-images
-   Body: {
-     "updateDatabase": true
-   }
-
-📂 DOWNLOAD STRUCTURE:
-./downloads/
-└── visibility-images/
-    └── [routeId]/
-        ├── turn_001_risk_8.5_street_view.jpg
-        ├── turn_001_risk_8.5_satellite.jpg
-        ├── turn_001_risk_8.5_roadmap.jpg
-        ├── turn_002_risk_7.2_street_view.jpg
-        ├── blindspot_001_risk_9.1_street_view.jpg
-        ├── blindspot_001_risk_9.1_satellite.jpg
-        ├── blindspot_002_risk_6.8_street_view.jpg
-        └── visibility_download_summary.json
-
-🎯 KEY FEATURES:
-✅ Downloads images for BOTH Sharp Turns AND Blind Spots
-✅ Automatic database updates with image metadata
-✅ Flexible filtering by risk threshold
-✅ Multiple image types (street view, satellite, roadmap)
-✅ Quality control (high/standard)
-✅ Comprehensive status reporting
-✅ File system synchronization
-✅ Bulk operations and management
-✅ Error handling with retry logic
-✅ Public URL generation for web access
-
-*/
