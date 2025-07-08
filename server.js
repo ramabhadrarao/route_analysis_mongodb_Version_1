@@ -1,5 +1,5 @@
-// File: server.js - UPDATED WITH NETWORK COVERAGE INTEGRATION
-// Purpose: Server with all routes including network coverage
+// INTEGRATION GUIDE: Enhanced Visibility Image Downloader
+// File: server.js (UPDATED VERSION)
 
 const express = require('express');
 const mongoose = require('mongoose');
@@ -67,7 +67,6 @@ try {
   console.error('❌ Error loading sharp turns routes:', error.message);
 }
 
-// ✅ NEW: Network Coverage Routes Integration
 try {
   const networkCoverageRoutes = require('./routes/networkCoverage');
   app.use('/api/network-coverage', networkCoverageRoutes);
@@ -76,6 +75,7 @@ try {
   console.error('❌ Error loading network coverage routes:', error.message);
 }
 
+// EXISTING: Sharp Turn Image Routes (legacy)
 try {
   const sharpTurnImageRoutes = require('./routes/sharpTurnImageDownloader');
   app.use('/api/sharp-turn-images', sharpTurnImageRoutes);
@@ -83,7 +83,16 @@ try {
 } catch (error) {
   console.error('❌ Error loading sharp turn image routes:', error.message);
 }
-// ADD THIS IMPORT after existing route imports:
+
+// ✅ NEW: Enhanced Visibility Image Downloader (Sharp Turns + Blind Spots)
+try {
+  const visibilityImageRoutes = require('./routes/visibilityImageDownloader');
+  app.use('/api/visibility-images', visibilityImageRoutes);
+  console.log('✅ Enhanced visibility image downloader routes loaded');
+} catch (error) {
+  console.error('❌ Error loading visibility image routes:', error.message);
+}
+
 try {
   const enhancedRoadConditionsRoutes = require('./routes/enhancedRoadConditions');
   app.use('/api/enhanced-road-conditions', enhancedRoadConditionsRoutes);
@@ -91,7 +100,7 @@ try {
 } catch (error) {
   console.error('❌ Error loading enhanced road conditions routes:', error.message);
 }
-// Add after your existing routes
+
 try {
   const pdfRoutes = require('./routes/pdfGeneration');
   app.use('/api/pdf', pdfRoutes);
@@ -99,6 +108,10 @@ try {
 } catch (error) {
   console.error('❌ Error loading PDF routes:', error.message);
 }
+
+// Static file serving for downloaded images
+app.use('/downloads', express.static('downloads'));
+
 // Health check endpoint
 app.get('/health', (req, res) => {
   res.status(200).json({
@@ -107,7 +120,8 @@ app.get('/health', (req, res) => {
     uptime: process.uptime(),
     services: {
       database: 'connected',
-      networkCoverage: 'available'
+      networkCoverage: 'available',
+      visibilityImages: 'available' // ✅ NEW
     }
   });
 });
@@ -116,18 +130,40 @@ app.get('/health', (req, res) => {
 app.get('/', (req, res) => {
   res.json({
     message: 'HPCL Journey Risk Management System API',
-    version: '2.0.0',
+    version: '2.1.0', // ✅ Updated version
     endpoints: {
       auth: '/api/auth',
       routes: '/api/routes',
       risk: '/api/risk',
       dashboard: '/api/dashboard',
       visibility: '/api/visibility',
-      networkCoverage: '/api/network-coverage', // ✅ NEW
-            enhancedRoadConditions: '/api/enhanced-road-conditions', // ✅ NEW
-
+      networkCoverage: '/api/network-coverage',
+      enhancedRoadConditions: '/api/enhanced-road-conditions',
+      sharpTurnImages: '/api/sharp-turn-images', // Legacy
+      visibilityImages: '/api/visibility-images', // ✅ NEW Enhanced
+      pdf: '/api/pdf',
       health: '/health'
     },
+    
+    // ✅ NEW: Enhanced Visibility Image Endpoints
+    visibilityImageEndpoints: {
+      // Comprehensive Downloads
+      downloadAllImages: 'POST /api/visibility-images/routes/:routeId/download-all-images',
+      
+      // Individual Type Downloads  
+      downloadSharpTurns: 'POST /api/visibility-images/routes/:routeId/download-sharp-turns',
+      downloadBlindSpots: 'POST /api/visibility-images/routes/:routeId/download-blind-spots',
+      
+      // Management & Status
+      getImageStatus: 'GET /api/visibility-images/routes/:routeId/image-status',
+      syncDatabase: 'POST /api/visibility-images/routes/:routeId/sync-database',
+      deleteAllImages: 'DELETE /api/visibility-images/routes/:routeId/delete-all-images',
+      
+      // Reports
+      getDownloadReport: 'GET /api/visibility-images/routes/:routeId/download-report'
+    },
+    
+    // Existing endpoints...
     networkCoverageEndpoints: {
       analyzeRoute: 'POST /api/network-coverage/routes/:routeId/analyze',
       getOverview: 'GET /api/network-coverage/routes/:routeId/overview',
@@ -139,25 +175,17 @@ app.get('/', (req, res) => {
       checkExists: 'GET /api/network-coverage/routes/:routeId/exists',
       deleteData: 'DELETE /api/network-coverage/routes/:routeId'
     },
-     enhancedRoadConditionsEndpoints: {
-      // Analysis
+    
+    enhancedRoadConditionsEndpoints: {
       analyzeRoute: 'POST /api/enhanced-road-conditions/routes/:routeId/analyze',
-      
-      // Data Viewing
       getOverview: 'GET /api/enhanced-road-conditions/routes/:routeId/overview',
       getSegments: 'GET /api/enhanced-road-conditions/routes/:routeId/segments',
       getRiskAssessment: 'GET /api/enhanced-road-conditions/routes/:routeId/risk-assessment',
       getRecommendations: 'GET /api/enhanced-road-conditions/routes/:routeId/recommendations',
-      
-      // Comparison & Analysis
       compareRoutes: 'GET /api/enhanced-road-conditions/routes/:routeId/compare',
-      
-      // Utilities
       checkApiStatus: 'GET /api/enhanced-road-conditions/api-status',
       deleteData: 'DELETE /api/enhanced-road-conditions/routes/:routeId'
     }
-     
-
   });
 });
 
@@ -173,6 +201,10 @@ app.use('*', (req, res) => {
       '/api/dashboard',
       '/api/visibility',
       '/api/network-coverage',
+      '/api/enhanced-road-conditions',
+      '/api/sharp-turn-images',
+      '/api/visibility-images', // ✅ NEW
+      '/api/pdf',
       '/health'
     ]
   });
@@ -194,7 +226,6 @@ app.listen(PORT, () => {
   console.log(`🚀 HPCL Journey Risk Management Server running on port ${PORT}`);
   console.log(`📊 Environment: ${process.env.NODE_ENV || 'development'}`);
   console.log(`🔗 API Base URL: http://localhost:${PORT}`);
-  console.log(`📶 Network Coverage API: http://localhost:${PORT}/api/network-coverage`);
   console.log('');
   console.log('Available API Endpoints:');
   console.log('├── Authentication: /api/auth');
@@ -202,8 +233,95 @@ app.listen(PORT, () => {
   console.log('├── Risk Assessment: /api/risk');
   console.log('├── Dashboard: /api/dashboard');
   console.log('├── Visibility Analysis: /api/visibility');
-  console.log('├── Network Coverage: /api/network-coverage ✨ NEW');
+  console.log('├── Network Coverage: /api/network-coverage');
+  console.log('├── Enhanced Road Conditions: /api/enhanced-road-conditions');
+  console.log('├── Sharp Turn Images (Legacy): /api/sharp-turn-images');
+  console.log('├── Visibility Images (Enhanced): /api/visibility-images ✨ NEW');
+  console.log('├── PDF Generation: /api/pdf');
   console.log('└── Health Check: /health');
+  console.log('');
+  console.log('✨ NEW FEATURE: Enhanced Visibility Image Downloader');
+  console.log('   📸 Download images for both Sharp Turns AND Blind Spots');
+  console.log('   🎯 Comprehensive filtering and quality options');
+  console.log('   💾 Automatic database synchronization');
+  console.log('   📊 Detailed status reporting and management');
 });
 
 module.exports = app;
+
+// ============================================================================
+// API USAGE EXAMPLES FOR ENHANCED VISIBILITY IMAGE DOWNLOADER
+// ============================================================================
+
+/*
+
+🔥 EXAMPLE USAGE:
+
+1. COMPREHENSIVE DOWNLOAD (Sharp Turns + Blind Spots):
+   POST http://localhost:3000/api/visibility-images/routes/686bb57ee66a4a39825fc854/download-all-images
+   Body: {
+     "imageTypes": ["street_view", "satellite", "roadmap"],
+     "quality": "high",
+     "updateDatabase": true,
+     "includeSharpTurns": true,
+     "includeBlindSpots": true,
+     "riskThreshold": 6.0
+   }
+
+2. SHARP TURNS ONLY:
+   POST http://localhost:3000/api/visibility-images/routes/686bb57ee66a4a39825fc854/download-sharp-turns
+   Body: {
+     "imageTypes": ["street_view", "satellite"],
+     "quality": "high",
+     "riskThreshold": 7.0
+   }
+
+3. BLIND SPOTS ONLY:
+   POST http://localhost:3000/api/visibility-images/routes/686bb57ee66a4a39825fc854/download-blind-spots
+   Body: {
+     "imageTypes": ["street_view", "satellite"],
+     "quality": "high", 
+     "riskThreshold": 6.0
+   }
+
+4. CHECK IMAGE STATUS:
+   GET http://localhost:3000/api/visibility-images/routes/686bb57ee66a4a39825fc854/image-status
+
+5. SYNC DATABASE WITH EXISTING FILES:
+   POST http://localhost:3000/api/visibility-images/routes/686bb57ee66a4a39825fc854/sync-database
+
+6. DOWNLOAD REPORT:
+   GET http://localhost:3000/api/visibility-images/routes/686bb57ee66a4a39825fc854/download-report
+
+7. DELETE ALL IMAGES:
+   DELETE http://localhost:3000/api/visibility-images/routes/686bb57ee66a4a39825fc854/delete-all-images
+   Body: {
+     "updateDatabase": true
+   }
+
+📂 DOWNLOAD STRUCTURE:
+./downloads/
+└── visibility-images/
+    └── [routeId]/
+        ├── turn_001_risk_8.5_street_view.jpg
+        ├── turn_001_risk_8.5_satellite.jpg
+        ├── turn_001_risk_8.5_roadmap.jpg
+        ├── turn_002_risk_7.2_street_view.jpg
+        ├── blindspot_001_risk_9.1_street_view.jpg
+        ├── blindspot_001_risk_9.1_satellite.jpg
+        ├── blindspot_002_risk_6.8_street_view.jpg
+        └── visibility_download_summary.json
+
+🎯 KEY FEATURES:
+✅ Downloads images for BOTH Sharp Turns AND Blind Spots
+✅ Automatic database updates with image metadata
+✅ Flexible filtering by risk threshold
+✅ Multiple image types (street view, satellite, roadmap)
+✅ Quality control (high/standard)
+✅ Comprehensive status reporting
+✅ File system synchronization
+✅ Bulk operations and management
+✅ Error handling with retry logic
+✅ Public URL generation for web access
+
+*/
